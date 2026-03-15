@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
   <title>Оранжевый чат</title>
   <style>
-    /* Все стили без изменений (такие же, как в предыдущей версии) */
+    /* Все стили без изменений – такие же, как в предыдущей версии */
     * {
       margin: 0;
       padding: 0;
@@ -301,7 +301,7 @@
     .message.other .time {
       color: #aaa;
     }
-    .message img {
+    .message img, .message video {
       max-width: 100%;
       max-height: 200px;
       border-radius: 8px;
@@ -413,8 +413,8 @@
         <div id="messages"></div>
         <div class="input-area">
           <input type="text" id="message-input" placeholder="Сообщение" disabled>
-          <label for="image-upload" class="image-upload-label" id="upload-label">📷</label>
-          <input type="file" id="image-upload" accept="image/*">
+          <label for="image-upload" class="image-upload-label" id="upload-label">📷/🎥</label>
+          <input type="file" id="image-upload" accept="image/*,video/*">
           <button id="send-btn" disabled>Отправить</button>
         </div>
       </div>
@@ -427,6 +427,18 @@
 
     function generateClientId() {
       return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    }
+
+    // ---- Конвертация base64 в Uint8Array для VAPID ключа ----
+    function urlB64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
     }
 
     // Элементы DOM
@@ -455,8 +467,9 @@
     let chatHistory = {};
     let audioContext = null;
     let typingTimer = null;
+    let pushSubscriptionAttempted = false; // флаг, чтобы не подписываться повторно
 
-    // Загрузка из localStorage
+    // ---- Загрузка из localStorage (как в предыдущей версии) ----
     function loadFromStorage() {
       const savedName = localStorage.getItem('userName');
       const savedId = localStorage.getItem('userId');
@@ -509,74 +522,6 @@
       }
     }
 
-    // Функция для конвертации base64 в Uint8Array (для ключа VAPID)
-function urlB64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
-
-// Запрос разрешения на уведомления и подписка
-async function subscribeToPush() {
-  if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-    console.log('Push-уведомления не поддерживаются');
-    return;
-  }
-
-  if (Notification.permission === 'denied') {
-    console.log('Пользователь заблокировал уведомления');
-    return;
-  }
-
-  if (Notification.permission === 'granted') {
-    try {
-      const registration = await navigator.serviceWorker.register('/service-worker.js');
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlB64ToUint8Array('BGuyUq1U6mSpoNjznmMX9RdN0xWny27DlzLboOaiMfF0ItHQAALKcCQ0392IofA5RtNAeV8t2Fa3lVjzv8UFbuI') // замените на ваш ключ
-      });
-
-      await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUser.id,
-          subscription: subscription
-        })
-      });
-      console.log('Подписка на push сохранена');
-    } catch (err) {
-      console.error('Ошибка подписки на push:', err);
-    }
-  } else {
-    // Запрашиваем разрешение
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      await subscribeToPush(); // рекурсивный вызов после получения разрешения
-    }
-  }
-}
-
-// Вызываем после успешного входа
-socket.on('joined', (user) => {
-  currentUser = user;
-  localStorage.setItem('userName', user.name);
-  localStorage.setItem('userId', user.id);
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  loginDiv.style.display = 'none';
-  chatDiv.style.display = 'flex';
-
-  // Подписка на push-уведомления
-  subscribeToPush();
-});
-
     function saveToStorage() {
       if (currentUser) {
         localStorage.setItem('userName', currentUser.name);
@@ -595,6 +540,7 @@ socket.on('joined', (user) => {
       location.reload();
     }
 
+    // ---- Вход ----
     joinBtn.addEventListener('click', () => {
       const name = nameInput.value.trim();
       if (!name) return;
@@ -615,6 +561,7 @@ socket.on('joined', (user) => {
       if (currentUser) clearStorageAndRelogin();
     });
 
+    // ---- Успешный вход ----
     socket.on('joined', (user) => {
       currentUser = user;
       localStorage.setItem('userName', user.name);
@@ -622,12 +569,66 @@ socket.on('joined', (user) => {
       if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
       loginDiv.style.display = 'none';
       chatDiv.style.display = 'flex';
+
+      // Запускаем подписку на push-уведомления
+      subscribeToPush();
     });
 
+    // ---- Kicked ----
     socket.on('kicked', (data) => {
       if (data.userId === currentUser?.id) { alert(data.message); location.reload(); }
     });
 
+    // ---- Подписка на push-уведомления ----
+    async function subscribeToPush() {
+      if (pushSubscriptionAttempted) return;
+      pushSubscriptionAttempted = true;
+
+      if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+        console.log('Push-уведомления не поддерживаются');
+        return;
+      }
+
+      if (Notification.permission === 'denied') {
+        console.log('Пользователь заблокировал уведомления');
+        return;
+      }
+
+      if (Notification.permission === 'granted') {
+        try {
+          const registration = await navigator.serviceWorker.register('/service-worker.js');
+          await navigator.serviceWorker.ready; // ждём активации
+
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlB64ToUint8Array('BDgW5DKfpY-xJcXAgAMDY-x7zL6s3yP684ArKPlM5UMeeoDcbmHCPBl8SeotvyCDxsz147_M3Nb677tBJOf6WCc') // замените на ваш ключ
+          });
+
+          const res = await fetch('/api/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              subscription: subscription
+            })
+          });
+          if (res.ok) {
+            console.log('Подписка на push сохранена');
+          } else {
+            console.error('Ошибка сохранения подписки');
+          }
+        } catch (err) {
+          console.error('Ошибка подписки на push:', err);
+        }
+      } else {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          await subscribeToPush();
+        }
+      }
+    }
+
+    // ---- Обновление списка онлайн ----
     socket.on('user list', (online) => {
       onlineUsers = online;
       online.forEach(u => {
@@ -639,6 +640,7 @@ socket.on('joined', (user) => {
       buildChatList();
     });
 
+    // ---- Построение списка чатов ----
     function buildChatList() {
       const allChats = [];
       onlineUsers.filter(u => u.id !== currentUser?.id).forEach(u => allChats.push({ id: u.id, name: u.name, online: true }));
@@ -710,7 +712,7 @@ socket.on('joined', (user) => {
       chatTitle.textContent = `Чат с ${chat.name}`;
       typingIndicatorHeader.textContent = '';
 
-      // Поле ввода всегда активно (теперь можно писать офлайн)
+      // Поле ввода всегда активно (можно писать офлайн)
       messageInput.disabled = false;
       sendBtn.disabled = false;
 
@@ -774,6 +776,7 @@ socket.on('joined', (user) => {
       typingTimer = setTimeout(() => { socket.emit('stop typing', { to: selectedUser.id }); }, 2000);
     });
 
+    // ---- Отправка сообщения с поддержкой видео и прогрессом ----
     async function sendMessage() {
       const text = messageInput.value.trim();
       if (!text && !imageUpload.files.length) return;
@@ -784,24 +787,60 @@ socket.on('joined', (user) => {
         const file = imageUpload.files[0];
         const formData = new FormData();
         formData.append('image', file);
+
+        // Сохраняем оригинальный текст кнопки и показываем прогресс
+        const originalText = sendBtn.textContent;
+        sendBtn.textContent = '0%';
+        sendBtn.disabled = true;
+
         try {
-          const res = await fetch('/upload', { method: 'POST', body: formData });
-          const data = await res.json();
-          socket.emit('private message', { to: selectedUser.id, text: text || '', imageUrl: data.url });
-          playSelfSendSound();
-        } catch (err) { console.error('Ошибка загрузки:', err); }
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/upload', true);
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              sendBtn.textContent = percent + '%';
+            }
+          };
+          xhr.onload = () => {
+            if (xhr.status === 200) {
+              const data = JSON.parse(xhr.responseText);
+              socket.emit('private message', {
+                to: selectedUser.id,
+                text: text || '',
+                imageUrl: data.url,
+              });
+              playSelfSendSound();
+            } else {
+              alert('Ошибка загрузки');
+            }
+            sendBtn.textContent = originalText;
+            sendBtn.disabled = false;
+          };
+          xhr.onerror = () => {
+            alert('Ошибка сети');
+            sendBtn.textContent = originalText;
+            sendBtn.disabled = false;
+          };
+          xhr.send(formData);
+        } catch (err) {
+          console.error('Ошибка загрузки:', err);
+          sendBtn.textContent = originalText;
+          sendBtn.disabled = false;
+        }
         imageUpload.value = '';
       } else {
         socket.emit('private message', { to: selectedUser.id, text });
         playSelfSendSound();
+        messageInput.value = '';
       }
-      messageInput.value = '';
     }
 
+    // ---- Вставка из буфера ----
     messageInput.addEventListener('paste', async (e) => {
       const items = (e.clipboardData || window.clipboardData).items;
       for (let item of items) {
-        if (item.type.indexOf('image') === 0) {
+        if (item.type.indexOf('image') === 0 || item.type.indexOf('video') === 0) {
           e.preventDefault();
           const file = item.getAsFile();
           const formData = new FormData();
@@ -809,7 +848,11 @@ socket.on('joined', (user) => {
           try {
             const res = await fetch('/upload', { method: 'POST', body: formData });
             const data = await res.json();
-            socket.emit('private message', { to: selectedUser.id, text: '', imageUrl: data.url });
+            socket.emit('private message', {
+              to: selectedUser.id,
+              text: '',
+              imageUrl: data.url,
+            });
             playSelfSendSound();
           } catch (err) { console.error('Ошибка загрузки из буфера:', err); }
           break;
@@ -817,6 +860,7 @@ socket.on('joined', (user) => {
       }
     });
 
+    // ---- Получение сообщения ----
     socket.on('private message', ({ from, fromName, to, text, imageUrl }) => {
       const isOwn = from === currentUser.id;
       const peerId = isOwn ? to : from;
@@ -840,6 +884,7 @@ socket.on('joined', (user) => {
       buildChatList();
     });
 
+    // ---- Очистка чата (от сервера) ----
     socket.on('chat cleared', ({ peerId }) => {
       if (chatHistory[peerId]) {
         chatHistory[peerId].messages = [];
@@ -849,6 +894,7 @@ socket.on('joined', (user) => {
       }
     });
 
+    // ---- Индикатор печатает ----
     socket.on('typing', ({ from, fromName }) => {
       if (chatHistory[from]) { chatHistory[from].isTyping = true; buildChatList(); }
       if (selectedUser && selectedUser.id === from) typingIndicatorHeader.textContent = `${fromName} печатает...`;
@@ -859,6 +905,12 @@ socket.on('joined', (user) => {
       if (selectedUser && selectedUser.id === from) typingIndicatorHeader.textContent = '';
     });
 
+    // ---- Определение типа файла по URL ----
+    function isVideoUrl(url) {
+      return /\.(mp4|webm|ogg|mov|avi)$/i.test(url);
+    }
+
+    // ---- Отображение сообщения (поддержка видео) ----
     function displayMessage(msg) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${msg.isOwn ? 'own' : 'other'}`;
@@ -876,11 +928,25 @@ socket.on('joined', (user) => {
         messageDiv.appendChild(textSpan);
       }
       if (msg.imageUrl) {
-        const img = document.createElement('img');
-        img.src = msg.imageUrl;
-        img.addEventListener('click', () => window.open(msg.imageUrl));
-        messageDiv.appendChild(img);
+        if (isVideoUrl(msg.imageUrl)) {
+          const video = document.createElement('video');
+          video.src = msg.imageUrl;
+          video.controls = true;
+          video.style.maxWidth = '100%';
+          video.style.maxHeight = '200px';
+          video.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.open(msg.imageUrl);
+          });
+          messageDiv.appendChild(video);
+        } else {
+          const img = document.createElement('img');
+          img.src = msg.imageUrl;
+          img.addEventListener('click', () => window.open(msg.imageUrl));
+          messageDiv.appendChild(img);
+        }
       }
+
       const timeSpan = document.createElement('div');
       timeSpan.className = 'time';
       timeSpan.textContent = msg.time;
@@ -890,6 +956,7 @@ socket.on('joined', (user) => {
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
+    // ---- Звуки ----
     function playNotificationSound() { playBeep(800, 0.2, 0.1); }
     function playActiveChatSound() { playBeep(600, 0.1, 0.05); }
     function playSelfSendSound() { playBeep(600, 0.1, 0.05); }
@@ -915,8 +982,6 @@ socket.on('joined', (user) => {
       if (window.innerWidth > 768) chatMain.classList.remove('active');
       else if (selectedUser) chatMain.classList.add('active'); else chatMain.classList.remove('active');
     });
-
-    // Лейбл сам открывает диалог через for, дополнительный click не нужен
   </script>
 </body>
 </html>

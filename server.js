@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -6,19 +5,20 @@ const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
 const webPush = require('web-push');
+require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Настройка VAPID
+// Настройка VAPID для push-уведомлений
 webPush.setVapidDetails(
-  process.env.VAPID_EMAIL,
+  process.env.VAPID_EMAIL || 'mailto:example@yourdomain.com',
   process.env.VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
 
-// Настройка multer для загрузки изображений
+// Настройка multer для загрузки файлов (изображения и видео)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, 'uploads');
@@ -32,13 +32,16 @@ const storage = multer.diskStorage({
     cb(null, uniqueName);
   }
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024 } // 50 МБ
+});
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Эндпоинт для загрузки изображений
+// Эндпоинт для загрузки файлов
 app.post('/upload', upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Файл не отправлен' });
@@ -53,15 +56,14 @@ app.post('/api/subscribe', (req, res) => {
     return res.status(400).json({ error: 'Missing data' });
   }
   pushSubscriptions.set(userId, subscription);
+  console.log(`Push subscription saved for user ${userId}`);
   res.json({ ok: true });
 });
 
-// Хранилище пользователей: userId -> { id, name, socketId }
-const users = new Map();
-// Хранилище офлайн-сообщений: userId -> [ { from, fromName, text, imageUrl, timestamp } ]
-const offlineMessages = new Map();
-// Хранилище push-подписок: userId -> subscription
-const pushSubscriptions = new Map();
+// Хранилища
+const users = new Map();               // userId -> { id, name, socketId }
+const offlineMessages = new Map();      // userId -> [сообщения]
+const pushSubscriptions = new Map();    // userId -> subscription
 
 io.on('connection', (socket) => {
   console.log('Новое подключение:', socket.id);
@@ -90,9 +92,7 @@ io.on('connection', (socket) => {
     // Отправляем офлайн-сообщения, если есть
     if (offlineMessages.has(userId)) {
       const messages = offlineMessages.get(userId);
-      messages.forEach(msg => {
-        socket.emit('private message', msg);
-      });
+      messages.forEach(msg => socket.emit('private message', msg));
       offlineMessages.delete(userId);
     }
 
@@ -114,33 +114,29 @@ io.on('connection', (socket) => {
 
     const recipient = users.get(to);
     if (recipient && recipient.socketId) {
+      // Получатель онлайн
       const toSocket = io.sockets.sockets.get(recipient.socketId);
-      if (toSocket) {
-        toSocket.emit('private message', message);
-      }
+      if (toSocket) toSocket.emit('private message', message);
     } else {
-      // Получатель не в сети – сохраняем
-      if (!offlineMessages.has(to)) {
-        offlineMessages.set(to, []);
-      }
+      // Получатель офлайн – сохраняем
+      if (!offlineMessages.has(to)) offlineMessages.set(to, []);
       offlineMessages.get(to).push(message);
 
-      // Пробуем отправить push-уведомление
+      // Пытаемся отправить push-уведомление
       const subscription = pushSubscriptions.get(to);
       if (subscription) {
         const payload = JSON.stringify({
           title: `Новое сообщение от ${fromUser.name}`,
-          body: text || '📷 Изображение',
+          body: text || (imageUrl ? (imageUrl.match(/\.(mp4|webm|ogg|mov)$/i) ? '🎥 Видео' : '📷 Изображение') : ''),
           url: '/',
           senderId: fromUser.id
         });
-        webPush.sendNotification(subscription, payload).catch(err => {
-          console.error('Push error:', err);
-          // Если подписка недействительна, удаляем её
-          if (err.statusCode === 410) {
-            pushSubscriptions.delete(to);
-          }
-        });
+        webPush.sendNotification(subscription, payload)
+          .then(() => console.log(`Push sent to ${to}`))
+          .catch(err => {
+            console.error('Push error:', err);
+            if (err.statusCode === 410) pushSubscriptions.delete(to); // подписка устарела
+          });
       }
     }
 
@@ -154,9 +150,7 @@ io.on('connection', (socket) => {
     const recipient = users.get(to);
     if (recipient && recipient.socketId) {
       const toSocket = io.sockets.sockets.get(recipient.socketId);
-      if (toSocket) {
-        toSocket.emit('typing', { from: fromUser.id, fromName: fromUser.name });
-      }
+      if (toSocket) toSocket.emit('typing', { from: fromUser.id, fromName: fromUser.name });
     }
   });
 
@@ -166,9 +160,7 @@ io.on('connection', (socket) => {
     const recipient = users.get(to);
     if (recipient && recipient.socketId) {
       const toSocket = io.sockets.sockets.get(recipient.socketId);
-      if (toSocket) {
-        toSocket.emit('stop typing', { from: fromUser.id });
-      }
+      if (toSocket) toSocket.emit('stop typing', { from: fromUser.id });
     }
   });
 
@@ -178,9 +170,7 @@ io.on('connection', (socket) => {
     const recipient = users.get(peerId);
     if (recipient && recipient.socketId) {
       const toSocket = io.sockets.sockets.get(recipient.socketId);
-      if (toSocket) {
-        toSocket.emit('chat cleared', { peerId: fromUser.id });
-      }
+      if (toSocket) toSocket.emit('chat cleared', { peerId: fromUser.id });
     }
     socket.emit('chat cleared', { peerId });
   });
