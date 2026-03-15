@@ -1,19 +1,30 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
+const webPush = require('web-push');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Настройка multer
+// Настройка VAPID
+webPush.setVapidDetails(
+  process.env.VAPID_EMAIL,
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+
+// Настройка multer для загрузки изображений
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     cb(null, dir);
   },
   filename: (req, file, cb) => {
@@ -27,15 +38,30 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Эндпоинт для загрузки изображений
 app.post('/upload', upload.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Файл не отправлен' });
+  if (!req.file) {
+    return res.status(400).json({ error: 'Файл не отправлен' });
+  }
   res.json({ url: `/uploads/${req.file.filename}` });
+});
+
+// Эндпоинт для сохранения push-подписки
+app.post('/api/subscribe', (req, res) => {
+  const { userId, subscription } = req.body;
+  if (!userId || !subscription) {
+    return res.status(400).json({ error: 'Missing data' });
+  }
+  pushSubscriptions.set(userId, subscription);
+  res.json({ ok: true });
 });
 
 // Хранилище пользователей: userId -> { id, name, socketId }
 const users = new Map();
 // Хранилище офлайн-сообщений: userId -> [ { from, fromName, text, imageUrl, timestamp } ]
 const offlineMessages = new Map();
+// Хранилище push-подписок: userId -> subscription
+const pushSubscriptions = new Map();
 
 io.on('connection', (socket) => {
   console.log('Новое подключение:', socket.id);
@@ -98,6 +124,24 @@ io.on('connection', (socket) => {
         offlineMessages.set(to, []);
       }
       offlineMessages.get(to).push(message);
+
+      // Пробуем отправить push-уведомление
+      const subscription = pushSubscriptions.get(to);
+      if (subscription) {
+        const payload = JSON.stringify({
+          title: `Новое сообщение от ${fromUser.name}`,
+          body: text || '📷 Изображение',
+          url: '/',
+          senderId: fromUser.id
+        });
+        webPush.sendNotification(subscription, payload).catch(err => {
+          console.error('Push error:', err);
+          // Если подписка недействительна, удаляем её
+          if (err.statusCode === 410) {
+            pushSubscriptions.delete(to);
+          }
+        });
+      }
     }
 
     // Отправляем подтверждение отправителю

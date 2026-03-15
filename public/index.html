@@ -509,6 +509,74 @@
       }
     }
 
+    // Функция для конвертации base64 в Uint8Array (для ключа VAPID)
+function urlB64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+// Запрос разрешения на уведомления и подписка
+async function subscribeToPush() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.log('Push-уведомления не поддерживаются');
+    return;
+  }
+
+  if (Notification.permission === 'denied') {
+    console.log('Пользователь заблокировал уведомления');
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    try {
+      const registration = await navigator.serviceWorker.register('/service-worker.js');
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array('BGuyUq1U6mSpoNjznmMX9RdN0xWny27DlzLboOaiMfF0ItHQAALKcCQ0392IofA5RtNAeV8t2Fa3lVjzv8UFbuI') // замените на ваш ключ
+      });
+
+      await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          subscription: subscription
+        })
+      });
+      console.log('Подписка на push сохранена');
+    } catch (err) {
+      console.error('Ошибка подписки на push:', err);
+    }
+  } else {
+    // Запрашиваем разрешение
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      await subscribeToPush(); // рекурсивный вызов после получения разрешения
+    }
+  }
+}
+
+// Вызываем после успешного входа
+socket.on('joined', (user) => {
+  currentUser = user;
+  localStorage.setItem('userName', user.name);
+  localStorage.setItem('userId', user.id);
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  loginDiv.style.display = 'none';
+  chatDiv.style.display = 'flex';
+
+  // Подписка на push-уведомления
+  subscribeToPush();
+});
+
     function saveToStorage() {
       if (currentUser) {
         localStorage.setItem('userName', currentUser.name);
