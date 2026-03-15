@@ -128,32 +128,6 @@ io.on('connection', (socket) => {
     socket.emit('chat cleared', { peerId });
   });
 
-  socket.on('delete message', ({ messageId, peerId }) => {
-    const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
-    if (!fromUser) return;
-    const recipient = users.get(peerId);
-    if (recipient && recipient.socketId) {
-      const toSocket = io.sockets.sockets.get(recipient.socketId);
-      if (toSocket) {
-        toSocket.emit('message deleted', { messageId, peerId: fromUser.id });
-      }
-    }
-    socket.emit('message deleted', { messageId, peerId });
-  });
-
-  socket.on('edit message', ({ messageId, peerId, newText }) => {
-    const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
-    if (!fromUser) return;
-    const recipient = users.get(peerId);
-    if (recipient && recipient.socketId) {
-      const toSocket = io.sockets.sockets.get(recipient.socketId);
-      if (toSocket) {
-        toSocket.emit('message edited', { messageId, peerId: fromUser.id, newText });
-      }
-    }
-    socket.emit('message edited', { messageId, peerId, newText });
-  });
-
   socket.on('disconnect', () => {
     for (let [userId, user] of users.entries()) {
       if (user.socketId === socket.id) {

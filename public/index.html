@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
   <title>Оранжевый чат</title>
   <style>
+    /* Все стили остаются без изменений (из предыдущего файла) */
     * {
       margin: 0;
       padding: 0;
@@ -295,7 +296,6 @@
       word-break: break-word;
       font-size: 1rem;
       line-height: 1.4;
-      position: relative;
     }
 
     .message.own {
@@ -339,33 +339,6 @@
       cursor: pointer;
       display: block;
       margin-top: 4px;
-    }
-
-    .message-actions {
-      position: absolute;
-      top: -20px;
-      right: 0;
-      display: flex;
-      gap: 5px;
-      background: #1e1e1e;
-      border-radius: 20px;
-      padding: 2px 5px;
-      border: 1px solid #333;
-      opacity: 0;
-      transition: opacity 0.2s;
-    }
-
-    .message.own:hover .message-actions {
-      opacity: 1;
-    }
-
-    .message-actions button {
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      font-size: 1rem;
-      padding: 2px 5px;
-      color: #ff8c00;
     }
 
     .input-area {
@@ -430,67 +403,9 @@
       font-size: 0.9rem;
     }
 
-    /* Модальное окно редактирования */
+    /* Модальное окно больше не нужно, удаляем стили для него? Оставим на всякий случай, но скроем */
     .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.7);
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-
-    .modal.active {
-      display: flex;
-    }
-
-    .modal-content {
-      background: #1e1e1e;
-      padding: 2rem;
-      border-radius: 16px;
-      width: 90%;
-      max-width: 500px;
-      color: #fff;
-    }
-
-    .modal-content textarea {
-      width: 100%;
-      min-height: 100px;
-      margin: 1rem 0;
-      padding: 0.5rem;
-      border: 1px solid #444;
-      border-radius: 8px;
-      background: #2a2a2a;
-      color: #fff;
-      font-size: 1rem;
-    }
-
-    .modal-buttons {
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-    }
-
-    .modal-buttons button {
-      padding: 0.5rem 1rem;
-      border: none;
-      border-radius: 20px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
-    #save-edit-btn {
-      background: #ff8c00;
-      color: #121212;
-    }
-
-    #cancel-edit-btn {
-      background: #444;
-      color: #fff;
+      display: none !important;
     }
 
     @media (max-width: 768px) {
@@ -597,17 +512,8 @@
     </div>
   </div>
 
-  <!-- Модальное окно редактирования -->
-  <div id="edit-modal" class="modal">
-    <div class="modal-content">
-      <h3>Редактировать сообщение</h3>
-      <textarea id="edit-textarea"></textarea>
-      <div class="modal-buttons">
-        <button id="save-edit-btn">Сохранить</button>
-        <button id="cancel-edit-btn">Отмена</button>
-      </div>
-    </div>
-  </div>
+  <!-- Модальное окно больше не используется, но оставляем пустым для совместимости -->
+  <div id="edit-modal" class="modal"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -618,7 +524,7 @@
       return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     }
 
-    // Генерация ID для сообщения
+    // Генерация ID для сообщения (нужен для возможной идентификации, но удаление сообщений убрано)
     function generateMessageId() {
       return 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
@@ -642,27 +548,20 @@
     const imageUpload = document.getElementById('image-upload');
     const uploadLabel = document.getElementById('upload-label');
 
-    // Модальное окно редактирования
-    const editModal = document.getElementById('edit-modal');
-    const editTextarea = document.getElementById('edit-textarea');
-    const saveEditBtn = document.getElementById('save-edit-btn');
-    const cancelEditBtn = document.getElementById('cancel-edit-btn');
-
     // Состояние
     let currentUser = null;
     let selectedUser = null; // { id, name, online? }
     let onlineUsers = [];    // массив онлайн пользователей (с сервера)
 
-    // Новая структура chatHistory: { [peerId]: { messages: [], peerName: string } }
+    // Структура chatHistory: { [peerId]: { messages: [], peerName: string } }
     let chatHistory = {};
 
     let audioContext = null;
-    let currentEditMessageId = null;
 
     // Таймер для "печатает"
     let typingTimer = null;
 
-    // ---- Загрузка из localStorage с преобразованием старой структуры ----
+    // ---- Загрузка из localStorage ----
     function loadFromStorage() {
       const savedName = localStorage.getItem('userName');
       const savedId = localStorage.getItem('userId');
@@ -673,32 +572,8 @@
         if (savedHistory) {
           try {
             const parsed = JSON.parse(savedHistory);
-            // Преобразуем старый формат (массив) в новый { messages, peerName }
-            if (Array.isArray(parsed)) {
-              // Старая структура: весь chatHistory был объектом с массивами сообщений
-              // Преобразуем каждый ключ
-              const newHistory = {};
-              for (let peerId in parsed) {
-                const msgs = parsed[peerId];
-                if (Array.isArray(msgs)) {
-                  // Находим последнее имя собеседника (не своё)
-                  let peerName = null;
-                  for (let i = msgs.length - 1; i >= 0; i--) {
-                    if (!msgs[i].isOwn) {
-                      peerName = msgs[i].fromName;
-                      break;
-                    }
-                  }
-                  if (!peerName && msgs.length > 0) {
-                    // Если все сообщения свои, используем имя из первого сообщения (оно своё, но это временно)
-                    peerName = msgs[0].fromName;
-                  }
-                  newHistory[peerId] = { messages: msgs, peerName: peerName || 'Неизвестно' };
-                }
-              }
-              chatHistory = newHistory;
-            } else if (typeof parsed === 'object' && parsed !== null) {
-              // Возможно, уже новый формат
+            // Преобразуем старый формат в новый, если нужно
+            if (typeof parsed === 'object' && parsed !== null) {
               chatHistory = parsed;
               // Убедимся, что у каждого чата есть поле peerName
               for (let peerId in chatHistory) {
@@ -712,6 +587,7 @@
                     }
                   }
                   if (!chatHistory[peerId].peerName) {
+                    // Если все сообщения свои, используем имя из первого сообщения (оно своё, но это временно)
                     chatHistory[peerId].peerName = msgs[0]?.fromName || 'Неизвестно';
                   }
                 }
@@ -969,45 +845,6 @@
       }
     });
 
-    // ---- Удаление сообщения ----
-    function deleteMessage(messageId) {
-      if (!selectedUser) return;
-      if (confirm('Удалить это сообщение?')) {
-        socket.emit('delete message', { messageId, peerId: selectedUser.id });
-      }
-    }
-
-    // ---- Редактирование сообщения ----
-    function editMessage(messageId, currentText) {
-      currentEditMessageId = messageId;
-      editTextarea.value = currentText;
-      editModal.classList.add('active');
-    }
-
-    saveEditBtn.addEventListener('click', () => {
-      const newText = editTextarea.value.trim();
-      if (!newText || !selectedUser || !currentEditMessageId) return;
-      socket.emit('edit message', {
-        messageId: currentEditMessageId,
-        peerId: selectedUser.id,
-        newText
-      });
-      editModal.classList.remove('active');
-      currentEditMessageId = null;
-    });
-
-    cancelEditBtn.addEventListener('click', () => {
-      editModal.classList.remove('active');
-      currentEditMessageId = null;
-    });
-
-    editModal.addEventListener('click', (e) => {
-      if (e.target === editModal) {
-        editModal.classList.remove('active');
-        currentEditMessageId = null;
-      }
-    });
-
     // ---- Отправка сообщения (текст или картинка) ----
     sendBtn.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
@@ -1106,7 +943,11 @@
       if (!isOwn) {
         chatHistory[peerId].peerName = fromName;
       } else if (!chatHistory[peerId].peerName) {
-        // Если ещё нет имени собеседника (чат инициирован нами), оставляем как есть
+        // Если это первое сообщение от нас и peerName ещё не установлен, устанавливаем его из selectedUser.name
+        // (в момент отправки selectedUser уже содержит имя собеседника)
+        if (selectedUser && selectedUser.id === peerId) {
+          chatHistory[peerId].peerName = selectedUser.name;
+        }
       }
 
       saveToStorage();
@@ -1127,32 +968,6 @@
       }
 
       buildChatList(); // обновить бейджи
-    });
-
-    // ---- Удаление сообщения (от сервера) ----
-    socket.on('message deleted', ({ messageId, peerId }) => {
-      if (chatHistory[peerId]) {
-        chatHistory[peerId].messages = chatHistory[peerId].messages.filter(msg => msg.id !== messageId);
-        saveToStorage();
-        if (selectedUser && selectedUser.id === peerId) {
-          loadChatHistory(peerId);
-        }
-        buildChatList();
-      }
-    });
-
-    // ---- Редактирование сообщения (от сервера) ----
-    socket.on('message edited', ({ messageId, peerId, newText }) => {
-      if (chatHistory[peerId]) {
-        const msg = chatHistory[peerId].messages.find(m => m.id === messageId);
-        if (msg) {
-          msg.text = newText;
-          saveToStorage();
-          if (selectedUser && selectedUser.id === peerId) {
-            loadChatHistory(peerId);
-          }
-        }
-      }
     });
 
     // ---- Очистка чата (от сервера) ----
@@ -1211,32 +1026,6 @@
       timeSpan.className = 'time';
       timeSpan.textContent = msg.time;
       messageDiv.appendChild(timeSpan);
-
-      // Кнопки действий (только для своих сообщений)
-      if (msg.isOwn) {
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'message-actions';
-        
-        const editBtn = document.createElement('button');
-        editBtn.textContent = '✏️';
-        editBtn.title = 'Редактировать';
-        editBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          editMessage(msg.id, msg.text || '');
-        });
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.textContent = '🗑️';
-        deleteBtn.title = 'Удалить';
-        deleteBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          deleteMessage(msg.id);
-        });
-
-        actionsDiv.appendChild(editBtn);
-        actionsDiv.appendChild(deleteBtn);
-        messageDiv.appendChild(actionsDiv);
-      }
 
       messagesDiv.appendChild(messageDiv);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
