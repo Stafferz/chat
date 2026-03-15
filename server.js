@@ -9,13 +9,11 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Настройка multer для загрузки изображений
+// Настройка multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: (req, file, cb) => {
@@ -30,14 +28,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.post('/upload', upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'Файл не отправлен' });
-  }
+  if (!req.file) return res.status(400).json({ error: 'Файл не отправлен' });
   res.json({ url: `/uploads/${req.file.filename}` });
 });
 
 // Хранилище пользователей: userId -> { id, name, socketId }
 const users = new Map();
+// Хранилище офлайн-сообщений: userId -> [ { from, fromName, text, imageUrl, timestamp } ]
+const offlineMessages = new Map();
 
 io.on('connection', (socket) => {
   console.log('Новое подключение:', socket.id);
@@ -62,6 +60,16 @@ io.on('connection', (socket) => {
     }
 
     socket.emit('joined', { id: userId, name });
+
+    // Отправляем офлайн-сообщения, если есть
+    if (offlineMessages.has(userId)) {
+      const messages = offlineMessages.get(userId);
+      messages.forEach(msg => {
+        socket.emit('private message', msg);
+      });
+      offlineMessages.delete(userId);
+    }
+
     broadcastUserList();
   });
 
@@ -69,26 +77,31 @@ io.on('connection', (socket) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
 
-    const recipient = users.get(to);
-    if (recipient && recipient.socketId) {
-      const toSocket = io.sockets.sockets.get(recipient.socketId);
-      if (toSocket) {
-        toSocket.emit('private message', {
-          from: fromUser.id,
-          fromName: fromUser.name,
-          to: recipient.id,
-          text,
-          imageUrl,
-        });
-      }
-    }
-    socket.emit('private message', {
+    const message = {
       from: fromUser.id,
       fromName: fromUser.name,
       to: to,
       text,
       imageUrl,
-    });
+      timestamp: Date.now()
+    };
+
+    const recipient = users.get(to);
+    if (recipient && recipient.socketId) {
+      const toSocket = io.sockets.sockets.get(recipient.socketId);
+      if (toSocket) {
+        toSocket.emit('private message', message);
+      }
+    } else {
+      // Получатель не в сети – сохраняем
+      if (!offlineMessages.has(to)) {
+        offlineMessages.set(to, []);
+      }
+      offlineMessages.get(to).push(message);
+    }
+
+    // Отправляем подтверждение отправителю
+    socket.emit('private message', message);
   });
 
   socket.on('typing', ({ to }) => {
