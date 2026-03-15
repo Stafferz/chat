@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-  <title>Чёрно-оранжевый мессенджер</title>
+  <title>Оранжевый чат</title>
   <style>
+    /* Чёрно-оранжевая тема */
     * {
       margin: 0;
       padding: 0;
@@ -17,11 +18,10 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      background: #121212; /* тёмный фон */
+      background: #121212;
       overflow-x: hidden;
     }
 
-    /* Экран входа */
     #login {
       background: #1e1e1e;
       padding: 2rem;
@@ -30,7 +30,7 @@
       width: 90%;
       max-width: 400px;
       text-align: center;
-      border: 1px solid #ff8c00;
+      color: #fff;
     }
 
     #login h2 {
@@ -42,7 +42,7 @@
       width: 100%;
       padding: 1rem;
       margin: 1rem 0;
-      border: 1px solid #333;
+      border: 1px solid #444;
       border-radius: 30px;
       font-size: 1rem;
       outline: none;
@@ -73,12 +73,11 @@
     }
 
     #error {
-      color: #ff4444;
+      color: #ff6b6b;
       margin-top: 1rem;
       font-size: 0.9rem;
     }
 
-    /* Основной интерфейс чата */
     #chat {
       display: none;
       width: 100%;
@@ -104,15 +103,14 @@
       transition: transform 0.3s ease;
     }
 
-    .sidebar h3 {
-      padding: 1.2rem 1rem;
+    .sidebar-header {
+      padding: 1rem;
       background: #ff8c00;
       color: #121212;
-      margin: 0;
-      font-size: 1.2rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      font-weight: bold;
     }
 
     #change-nick-btn {
@@ -121,9 +119,9 @@
       color: #121212;
       padding: 0.3rem 0.8rem;
       border-radius: 20px;
-      font-size: 0.9rem;
       cursor: pointer;
-      font-weight: normal;
+      font-weight: bold;
+      font-size: 0.9rem;
     }
 
     #change-nick-btn:active {
@@ -244,7 +242,7 @@
       font-size: 0.85rem;
       font-weight: bold;
       margin-bottom: 0.25rem;
-      color: #ff8c00;
+      color: #aaa;
     }
 
     .message .time {
@@ -272,7 +270,7 @@
     #message-input {
       flex: 1;
       padding: 0.75rem 1rem;
-      border: 1px solid #333;
+      border: 1px solid #444;
       border-radius: 30px;
       font-size: 1rem;
       outline: none;
@@ -307,7 +305,6 @@
       pointer-events: none;
     }
 
-    /* Мобильные стили */
     @media (max-width: 768px) {
       body, #chat, .chat-container {
         overflow-x: hidden;
@@ -375,34 +372,23 @@
         padding: 0.5rem 1rem 0.5rem 0.5rem;
       }
     }
-
-    @media (max-width: 480px) {
-      .message {
-        max-width: 90%;
-        font-size: 1rem;
-      }
-
-      #login {
-        padding: 1.5rem;
-      }
-    }
   </style>
 </head>
 <body>
   <div id="login">
-    <h2>Вход в чат</h2>
+    <h2>Оранжевый чат</h2>
     <input type="text" id="name-input" placeholder="Ваше имя" autofocus>
-    <button id="join-btn">Присоединиться</button>
+    <button id="join-btn">Войти</button>
     <div id="error"></div>
   </div>
 
   <div id="chat">
     <div class="chat-container">
       <div class="sidebar">
-        <h3>
-          Участники онлайн
+        <div class="sidebar-header">
+          <span>Участники онлайн</span>
           <button id="change-nick-btn">Сменить ник</button>
-        </h3>
+        </div>
         <ul id="user-list"></ul>
       </div>
       <div class="main" id="chat-main">
@@ -423,6 +409,11 @@
   <script>
     const socket = io();
 
+    // Генерация уникального ID на клиенте
+    function generateClientId() {
+      return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    }
+
     // Элементы DOM
     const loginDiv = document.getElementById('login');
     const chatDiv = document.getElementById('chat');
@@ -439,32 +430,29 @@
     const changeNickBtn = document.getElementById('change-nick-btn');
 
     // Состояние
-    let currentUser = null;          // { id, name }
-    let selectedUser = null;         // { id, name }
-    let users = [];                  // онлайн пользователи
-    let chatHistory = {};             // peerId -> массив сообщений
+    let currentUser = null;
+    let selectedUser = null;
+    let users = [];
+    let chatHistory = {};
     let audioContext = null;
 
-    // ---- Загрузка сохранённых данных из localStorage ----
+    // ---- Загрузка из localStorage ----
     function loadFromStorage() {
       const savedName = localStorage.getItem('userName');
       const savedId = localStorage.getItem('userId');
-      const savedHistory = localStorage.getItem('chatHistory');
       if (savedName && savedId) {
-        // Сохраняем в currentUser, но не пытаемся войти автоматически
-        // Подключение произойдёт после загрузки страницы, но нужно отправить событие join с этими данными
         currentUser = { id: savedId, name: savedName };
         nameInput.value = savedName;
+        const savedHistory = localStorage.getItem('chatHistory');
         if (savedHistory) {
           try {
             chatHistory = JSON.parse(savedHistory);
           } catch (e) {}
         }
-        // Попытка подключиться
-        socket.emit('join', { name: savedName, userId: savedId });
-        // Показываем интерфейс чата (он будет скрыт, если ошибка)
         loginDiv.style.display = 'none';
         chatDiv.style.display = 'flex';
+        socket.emit('join', { name: savedName, userId: savedId });
+        // Аудиоконтекст создадим позже, после жеста
       }
     }
 
@@ -477,33 +465,28 @@
       }
     }
 
-    // ---- Очистка storage и возврат к логину ----
-    function logout() {
+    // ---- Очистка storage (смена ника) ----
+    function clearStorageAndRelogin() {
       localStorage.removeItem('userName');
       localStorage.removeItem('userId');
       localStorage.removeItem('chatHistory');
       currentUser = null;
       selectedUser = null;
       chatHistory = {};
-      // Отключаем сокет и показываем экран входа
-      socket.disconnect();
-      socket.connect(); // переподключаемся для нового входа
-      loginDiv.style.display = 'block';
-      chatDiv.style.display = 'none';
-      errorDiv.textContent = '';
+      // Перезагружаем страницу, чтобы вернуться на экран входа
+      location.reload();
     }
 
-    // ---- Смена ника ----
-    changeNickBtn.addEventListener('click', () => {
-      logout();
-    });
-
-    // ---- Вход (кнопка) ----
+    // ---- Вход по кнопке ----
     joinBtn.addEventListener('click', () => {
       const name = nameInput.value.trim();
       if (!name) return;
-      // Отправляем join без userId (новый пользователь)
-      socket.emit('join', { name });
+      let userId = localStorage.getItem('userId');
+      if (!userId) {
+        userId = generateClientId();
+        localStorage.setItem('userId', userId);
+      }
+      socket.emit('join', { name, userId });
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
@@ -513,35 +496,39 @@
       if (e.key === 'Enter') joinBtn.click();
     });
 
-    // ---- Ошибка входа (например, имя занято, но у нас теперь имя может дублироваться) ----
+    // ---- Смена ника ----
+    changeNickBtn.addEventListener('click', clearStorageAndRelogin);
+
+    // ---- Ошибка входа (например, если имя занято – но теперь мы не проверяем уникальность) ----
     socket.on('joinError', (msg) => {
       errorDiv.textContent = msg;
       // Если была попытка автоматического входа, очищаем
       if (currentUser) {
-        logout();
+        clearStorageAndRelogin();
       }
     });
 
     // ---- Успешный вход ----
     socket.on('joined', (user) => {
       currentUser = user;
+      localStorage.setItem('userName', user.name);
+      localStorage.setItem('userId', user.id);
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
-      saveToStorage();
       loginDiv.style.display = 'none';
       chatDiv.style.display = 'flex';
     });
 
-    // ---- Вытеснение (другое подключение с тем же ID) ----
+    // ---- Предупреждение о "kicked" (при входе с другого устройства) ----
     socket.on('kicked', (msg) => {
-      alert(msg); // или показать уведомление
-      logout();
+      alert(msg);
+      // Можно просто перезагрузить страницу, чтобы освободить состояние
+      location.reload();
     });
 
     // ---- Обновление списка пользователей ----
     socket.on('user list', (onlineUsers) => {
-      // Фильтруем текущего пользователя
       users = onlineUsers.filter(u => u.id !== currentUser?.id);
       renderUserList();
 
@@ -725,9 +712,7 @@
     }
 
     // ---- При загрузке страницы пытаемся восстановить сессию ----
-    window.addEventListener('load', () => {
-      loadFromStorage();
-    });
+    window.addEventListener('load', loadFromStorage);
 
     // ---- Обработка изменения размера окна ----
     window.addEventListener('resize', () => {

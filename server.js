@@ -9,45 +9,50 @@ const io = socketIo(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Хранилище пользователей: userId -> { id: userId, name, socketId }
+// Хранилище пользователей: userId -> { id, name, socketId }
 const users = new Map();
-
-function generateId() {
-  return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-}
 
 io.on('connection', (socket) => {
   console.log('Новое подключение:', socket.id);
 
   socket.on('join', ({ name, userId }) => {
-    // Если передан userId и такой пользователь существует, обновляем его
-    if (userId && users.has(userId)) {
-      const user = users.get(userId);
-      if (user.socketId && user.socketId !== socket.id) {
-        const oldSocket = io.sockets.sockets.get(user.socketId);
+    // Если userId не передан (на всякий случай) – генерируем
+    if (!userId) {
+      userId = generateId();
+    }
+
+    if (users.has(userId)) {
+      const existing = users.get(userId);
+      // Если старый сокет существует и это не текущий, отключаем старый
+      if (existing.socketId && existing.socketId !== socket.id) {
+        const oldSocket = io.sockets.sockets.get(existing.socketId);
         if (oldSocket) {
           oldSocket.emit('kicked', 'Вы вошли с другого устройства или перезагрузили страницу');
           oldSocket.disconnect(true);
         }
       }
-      user.name = name;
-      user.socketId = socket.id;
-      users.set(userId, user);
-      socket.emit('joined', { id: userId, name: user.name });
-      broadcastUserList();
-      return;
+      // Обновляем имя и сокет
+      existing.name = name;
+      existing.socketId = socket.id;
+      users.set(userId, existing);
+    } else {
+      // Новый пользователь
+      users.set(userId, { id: userId, name, socketId: socket.id });
     }
 
-    // Создаём нового пользователя
-    const newUserId = generateId();
-    const newUser = { id: newUserId, name, socketId: socket.id };
-    users.set(newUserId, newUser);
-    socket.emit('joined', { id: newUserId, name });
+    socket.emit('joined', { id: userId, name });
     broadcastUserList();
   });
 
   socket.on('private message', ({ to, text }) => {
-    const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
+    // Находим отправителя по socket.id
+    let fromUser = null;
+    for (let user of users.values()) {
+      if (user.socketId === socket.id) {
+        fromUser = user;
+        break;
+      }
+    }
     if (!fromUser) return;
 
     const recipient = users.get(to);
@@ -62,6 +67,7 @@ io.on('connection', (socket) => {
         });
       }
     }
+    // Отправляем подтверждение отправителю
     socket.emit('private message', {
       from: fromUser.id,
       fromName: fromUser.name,
@@ -71,6 +77,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    // Удаляем пользователя из Map по socket.id
     for (let [userId, user] of users.entries()) {
       if (user.socketId === socket.id) {
         users.delete(userId);
@@ -84,6 +91,10 @@ io.on('connection', (socket) => {
 function broadcastUserList() {
   const userList = Array.from(users.values()).map(({ id, name }) => ({ id, name }));
   io.emit('user list', userList);
+}
+
+function generateId() {
+  return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 }
 
 const PORT = process.env.PORT || 3000;
