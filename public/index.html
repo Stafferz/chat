@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
   <title>Оранжевый чат</title>
   <style>
-    /* Все стили без изменений – такие же, как в предыдущей версии */
+    /* ... все стили из предыдущей версии ... */
     * {
       margin: 0;
       padding: 0;
@@ -363,6 +363,8 @@
       font-weight: bold;
       font-size: 0.9rem;
     }
+
+    /* Мобильные улучшения */
     @media (max-width: 768px) {
       body, #chat, .chat-container { overflow-x: hidden; }
       .chat-container { flex-direction: column; }
@@ -379,10 +381,48 @@
       #back-btn { display: inline-block; }
       #chat-list li { padding: 1rem; font-size: 1.2rem; }
       .notification-badge { min-width: 28px; height: 28px; font-size: 1rem; }
-      #send-btn { padding: 0.7rem 1.2rem; font-size: 1rem; min-width: 70px; }
-      #message-input { padding: 0.7rem 1rem; font-size: 1rem; }
+
+      /* Исправления для одной строки */
+      .input-area {
+        flex-wrap: nowrap;
+        gap: 4px;
+        padding: 0.5rem;
+      }
+      #message-input {
+        flex: 1 1 100px;
+        min-width: 50px;
+        padding: 0.5rem 0.8rem;
+        font-size: 0.9rem;
+      }
+      #send-btn {
+        flex: 0 0 auto;
+        padding: 0.5rem 0.8rem;
+        min-width: 60px;
+        font-size: 0.9rem;
+      }
+      .image-upload-label {
+        flex: 0 0 auto;
+        padding: 0.5rem 0.8rem;
+        font-size: 0.9rem;
+      }
+
       #chat-header { padding: 1.2rem; font-size: 1.3rem; }
       #back-btn { font-size: 1.8rem; padding: 0.5rem 1rem 0.5rem 0.5rem; }
+    }
+
+    @media (max-width: 380px) {
+      .input-area {
+        padding: 0.3rem;
+      }
+      #send-btn {
+        min-width: 50px;
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
+      }
+      .image-upload-label {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
+      }
     }
   </style>
 </head>
@@ -429,7 +469,7 @@
       return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     }
 
-    // ---- Конвертация base64 в Uint8Array для VAPID ключа ----
+    // Конвертер для VAPID ключа
     function urlB64ToUint8Array(base64String) {
       const padding = '='.repeat((4 - base64String.length % 4) % 4);
       const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
@@ -441,7 +481,7 @@
       return outputArray;
     }
 
-    // Элементы DOM
+    // DOM elements
     const loginDiv = document.getElementById('login');
     const chatDiv = document.getElementById('chat');
     const nameInput = document.getElementById('name-input');
@@ -460,16 +500,16 @@
     const imageUpload = document.getElementById('image-upload');
     const uploadLabel = document.getElementById('upload-label');
 
-    // Состояние
+    // State
     let currentUser = null;
     let selectedUser = null;
     let onlineUsers = [];
     let chatHistory = {};
     let audioContext = null;
     let typingTimer = null;
-    let pushSubscriptionAttempted = false; // флаг, чтобы не подписываться повторно
+    let pushSubscriptionAttempted = false;
 
-    // ---- Загрузка из localStorage (как в предыдущей версии) ----
+    // Load from localStorage (preserve old structure)
     function loadFromStorage() {
       const savedName = localStorage.getItem('userName');
       const savedId = localStorage.getItem('userId');
@@ -540,7 +580,7 @@
       location.reload();
     }
 
-    // ---- Вход ----
+    // Login button
     joinBtn.addEventListener('click', () => {
       const name = nameInput.value.trim();
       if (!name) return;
@@ -561,7 +601,6 @@
       if (currentUser) clearStorageAndRelogin();
     });
 
-    // ---- Успешный вход ----
     socket.on('joined', (user) => {
       currentUser = user;
       localStorage.setItem('userName', user.name);
@@ -569,40 +608,43 @@
       if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
       loginDiv.style.display = 'none';
       chatDiv.style.display = 'flex';
-
-      // Запускаем подписку на push-уведомления
-      subscribeToPush();
+      subscribeToPush(); // попытка подписки на уведомления
     });
 
-    // ---- Kicked ----
     socket.on('kicked', (data) => {
       if (data.userId === currentUser?.id) { alert(data.message); location.reload(); }
     });
 
-    // ---- Подписка на push-уведомления ----
+    // Push subscription
     async function subscribeToPush() {
       if (pushSubscriptionAttempted) return;
       pushSubscriptionAttempted = true;
 
       if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-        console.log('Push-уведомления не поддерживаются');
+        console.log('Push не поддерживается');
         return;
       }
 
       if (Notification.permission === 'denied') {
-        console.log('Пользователь заблокировал уведомления');
+        console.log('Уведомления запрещены');
         return;
       }
 
       if (Notification.permission === 'granted') {
         try {
           const registration = await navigator.serviceWorker.register('/service-worker.js');
-          await navigator.serviceWorker.ready; // ждём активации
+          await navigator.serviceWorker.ready;
 
-          const subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlB64ToUint8Array('BDgW5DKfpY-xJcXAgAMDY-x7zL6s3yP684ArKPlM5UMeeoDcbmHCPBl8SeotvyCDxsz147_M3Nb677tBJOf6WCc') // замените на ваш ключ
-          });
+          let subscription = await registration.pushManager.getSubscription();
+          if (!subscription) {
+            subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlB64ToUint8Array(BDgW5DKfpY-xJcXAgAMDY-x7zL6s3yP684ArKPlM5UMeeoDcbmHCPBl8SeotvyCDxsz147_M3Nb677tBJOf6WCc) // замените на ваш ключ
+            });
+            console.log('Новая подписка создана');
+          } else {
+            console.log('Уже есть подписка');
+          }
 
           const res = await fetch('/api/subscribe', {
             method: 'POST',
@@ -613,7 +655,7 @@
             })
           });
           if (res.ok) {
-            console.log('Подписка на push сохранена');
+            console.log('Подписка сохранена');
           } else {
             console.error('Ошибка сохранения подписки');
           }
@@ -628,7 +670,7 @@
       }
     }
 
-    // ---- Обновление списка онлайн ----
+    // Online list
     socket.on('user list', (online) => {
       onlineUsers = online;
       online.forEach(u => {
@@ -640,7 +682,6 @@
       buildChatList();
     });
 
-    // ---- Построение списка чатов ----
     function buildChatList() {
       const allChats = [];
       onlineUsers.filter(u => u.id !== currentUser?.id).forEach(u => allChats.push({ id: u.id, name: u.name, online: true }));
@@ -700,7 +741,7 @@
     }
 
     function deleteChat(peerId) {
-      if (!confirm('Удалить историю переписки с этим пользователем? Это действие необратимо.')) return;
+      if (!confirm('Удалить историю переписки с этим пользователем?')) return;
       delete chatHistory[peerId];
       saveToStorage();
       if (selectedUser && selectedUser.id === peerId) closeChat();
@@ -711,30 +752,22 @@
       selectedUser = chat;
       chatTitle.textContent = `Чат с ${chat.name}`;
       typingIndicatorHeader.textContent = '';
-
-      // Поле ввода всегда активно (можно писать офлайн)
       messageInput.disabled = false;
       sendBtn.disabled = false;
-
       if (!chat.online) chatTitle.textContent += ' (офлайн)';
-
       if (!chatHistory[chat.id]) {
         chatHistory[chat.id] = { messages: [], peerName: chat.name, isTyping: false };
       } else {
         chatHistory[chat.id].peerName = chat.name;
       }
-
       clearChatBtn.style.display = 'inline-block';
       messageInput.focus();
-
       if (chatHistory[chat.id]) {
         chatHistory[chat.id].messages.forEach(msg => { msg.read = true; });
       }
-
       buildChatList();
       loadChatHistory(chat.id);
       saveToStorage();
-
       if (window.innerWidth <= 768) chatMain.classList.add('active');
     }
 
@@ -761,7 +794,7 @@
 
     clearChatBtn.addEventListener('click', () => {
       if (!selectedUser) return;
-      if (confirm('Очистить всю историю сообщений с этим пользователем?')) {
+      if (confirm('Очистить всю историю сообщений?')) {
         socket.emit('clear chat', { peerId: selectedUser.id });
       }
     });
@@ -776,7 +809,6 @@
       typingTimer = setTimeout(() => { socket.emit('stop typing', { to: selectedUser.id }); }, 2000);
     });
 
-    // ---- Отправка сообщения с поддержкой видео и прогрессом ----
     async function sendMessage() {
       const text = messageInput.value.trim();
       if (!text && !imageUpload.files.length) return;
@@ -788,7 +820,6 @@
         const formData = new FormData();
         formData.append('image', file);
 
-        // Сохраняем оригинальный текст кнопки и показываем прогресс
         const originalText = sendBtn.textContent;
         sendBtn.textContent = '0%';
         sendBtn.disabled = true;
@@ -836,7 +867,6 @@
       }
     }
 
-    // ---- Вставка из буфера ----
     messageInput.addEventListener('paste', async (e) => {
       const items = (e.clipboardData || window.clipboardData).items;
       for (let item of items) {
@@ -860,7 +890,6 @@
       }
     });
 
-    // ---- Получение сообщения ----
     socket.on('private message', ({ from, fromName, to, text, imageUrl }) => {
       const isOwn = from === currentUser.id;
       const peerId = isOwn ? to : from;
@@ -884,7 +913,6 @@
       buildChatList();
     });
 
-    // ---- Очистка чата (от сервера) ----
     socket.on('chat cleared', ({ peerId }) => {
       if (chatHistory[peerId]) {
         chatHistory[peerId].messages = [];
@@ -894,7 +922,6 @@
       }
     });
 
-    // ---- Индикатор печатает ----
     socket.on('typing', ({ from, fromName }) => {
       if (chatHistory[from]) { chatHistory[from].isTyping = true; buildChatList(); }
       if (selectedUser && selectedUser.id === from) typingIndicatorHeader.textContent = `${fromName} печатает...`;
@@ -905,12 +932,10 @@
       if (selectedUser && selectedUser.id === from) typingIndicatorHeader.textContent = '';
     });
 
-    // ---- Определение типа файла по URL ----
     function isVideoUrl(url) {
       return /\.(mp4|webm|ogg|mov|avi)$/i.test(url);
     }
 
-    // ---- Отображение сообщения (поддержка видео) ----
     function displayMessage(msg) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${msg.isOwn ? 'own' : 'other'}`;
@@ -956,7 +981,7 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    // ---- Звуки ----
+    // Sounds
     function playNotificationSound() { playBeep(800, 0.2, 0.1); }
     function playActiveChatSound() { playBeep(600, 0.1, 0.05); }
     function playSelfSendSound() { playBeep(600, 0.1, 0.05); }

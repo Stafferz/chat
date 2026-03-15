@@ -11,20 +11,18 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Настройка VAPID для push-уведомлений
+// VAPID
 webPush.setVapidDetails(
-  process.env.VAPID_EMAIL || 'mailto:example@yourdomain.com',
+  process.env.VAPID_EMAIL || 'mailto:admin@example.com',
   process.env.VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
 
-// Настройка multer для загрузки файлов (изображения и видео)
+// Multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: (req, file, cb) => {
@@ -34,39 +32,34 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 } // 50 МБ
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB
 });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Эндпоинт для загрузки файлов
 app.post('/upload', upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'Файл не отправлен' });
-  }
+  if (!req.file) return res.status(400).json({ error: 'Файл не отправлен' });
   res.json({ url: `/uploads/${req.file.filename}` });
 });
 
-// Эндпоинт для сохранения push-подписки
+// Push subscription
+const pushSubscriptions = new Map();
 app.post('/api/subscribe', (req, res) => {
   const { userId, subscription } = req.body;
-  if (!userId || !subscription) {
-    return res.status(400).json({ error: 'Missing data' });
-  }
+  if (!userId || !subscription) return res.status(400).json({ error: 'Missing data' });
   pushSubscriptions.set(userId, subscription);
   console.log(`Push subscription saved for user ${userId}`);
   res.json({ ok: true });
 });
 
-// Хранилища
-const users = new Map();               // userId -> { id, name, socketId }
-const offlineMessages = new Map();      // userId -> [сообщения]
-const pushSubscriptions = new Map();    // userId -> subscription
+// Users and offline messages
+const users = new Map();
+const offlineMessages = new Map();
 
 io.on('connection', (socket) => {
-  console.log('Новое подключение:', socket.id);
+  console.log('New connection:', socket.id);
 
   socket.on('join', ({ name, userId }) => {
     if (!userId) userId = generateId();
@@ -76,7 +69,7 @@ io.on('connection', (socket) => {
       if (existing.socketId && existing.socketId !== socket.id) {
         const oldSocket = io.sockets.sockets.get(existing.socketId);
         if (oldSocket) {
-          oldSocket.emit('kicked', { message: 'Вы вошли с другого устройства', userId: existing.id });
+          oldSocket.emit('kicked', { message: 'You logged in from another device', userId: existing.id });
           oldSocket.disconnect(true);
         }
       }
@@ -89,10 +82,9 @@ io.on('connection', (socket) => {
 
     socket.emit('joined', { id: userId, name });
 
-    // Отправляем офлайн-сообщения, если есть
+    // Send offline messages
     if (offlineMessages.has(userId)) {
-      const messages = offlineMessages.get(userId);
-      messages.forEach(msg => socket.emit('private message', msg));
+      offlineMessages.get(userId).forEach(msg => socket.emit('private message', msg));
       offlineMessages.delete(userId);
     }
 
@@ -106,7 +98,7 @@ io.on('connection', (socket) => {
     const message = {
       from: fromUser.id,
       fromName: fromUser.name,
-      to: to,
+      to,
       text,
       imageUrl,
       timestamp: Date.now()
@@ -114,20 +106,19 @@ io.on('connection', (socket) => {
 
     const recipient = users.get(to);
     if (recipient && recipient.socketId) {
-      // Получатель онлайн
       const toSocket = io.sockets.sockets.get(recipient.socketId);
       if (toSocket) toSocket.emit('private message', message);
     } else {
-      // Получатель офлайн – сохраняем
+      // Offline – store
       if (!offlineMessages.has(to)) offlineMessages.set(to, []);
       offlineMessages.get(to).push(message);
 
-      // Пытаемся отправить push-уведомление
+      // Try push
       const subscription = pushSubscriptions.get(to);
       if (subscription) {
         const payload = JSON.stringify({
-          title: `Новое сообщение от ${fromUser.name}`,
-          body: text || (imageUrl ? (imageUrl.match(/\.(mp4|webm|ogg|mov)$/i) ? '🎥 Видео' : '📷 Изображение') : ''),
+          title: `New message from ${fromUser.name}`,
+          body: text || (imageUrl ? (imageUrl.match(/\.(mp4|webm|ogg|mov)$/i) ? 'Video' : 'Image') : ''),
           url: '/',
           senderId: fromUser.id
         });
@@ -135,12 +126,12 @@ io.on('connection', (socket) => {
           .then(() => console.log(`Push sent to ${to}`))
           .catch(err => {
             console.error('Push error:', err);
-            if (err.statusCode === 410) pushSubscriptions.delete(to); // подписка устарела
+            if (err.statusCode === 410) pushSubscriptions.delete(to); // expired
           });
       }
     }
 
-    // Отправляем подтверждение отправителю
+    // Echo back to sender
     socket.emit('private message', message);
   });
 
@@ -187,8 +178,8 @@ io.on('connection', (socket) => {
 });
 
 function broadcastUserList() {
-  const userList = Array.from(users.values()).map(({ id, name }) => ({ id, name }));
-  io.emit('user list', userList);
+  const list = Array.from(users.values()).map(({ id, name }) => ({ id, name }));
+  io.emit('user list', list);
 }
 
 function generateId() {
@@ -197,5 +188,5 @@ function generateId() {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Сервер запущен на порту ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
