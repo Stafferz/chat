@@ -137,13 +137,13 @@
     }
 
     #user-list li {
-      padding: 1rem;
+      padding: 0.8rem 1rem;
       border-bottom: 1px solid #333;
       cursor: pointer;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      font-size: 1.1rem;
+      gap: 8px;
+      font-size: 1rem;
       color: #fff;
       transition: background 0.2s;
     }
@@ -153,22 +153,40 @@
     }
 
     #user-list li.selected {
-      background: #b85e00;
+      background: #b85e00; /* более тёмный оранжевый для выделения */
       color: #121212;
       box-shadow: inset 0 0 0 1px rgba(255,140,0,0.5);
+    }
+
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .status-online {
+      background: #4caf50; /* зелёный */
+      box-shadow: 0 0 5px #4caf50;
+    }
+
+    .status-offline {
+      background: #888; /* серый */
     }
 
     .notification-badge {
       background: #ff8c00;
       color: #121212;
       border-radius: 50%;
-      min-width: 24px;
-      height: 24px;
+      min-width: 22px;
+      height: 22px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.9rem;
+      font-size: 0.8rem;
       font-weight: bold;
+      margin-left: auto;
       padding: 0 4px;
     }
 
@@ -189,6 +207,7 @@
       align-items: center;
       gap: 10px;
       color: #ff8c00;
+      flex-wrap: wrap;
     }
 
     #back-btn {
@@ -206,8 +225,18 @@
       opacity: 0.6;
     }
 
+    #chat-title {
+      flex: 1;
+    }
+
+    #typing-indicator {
+      font-size: 0.9rem;
+      color: #aaa;
+      margin-left: 10px;
+      font-style: italic;
+    }
+
     #clear-chat-btn {
-      margin-left: auto;
       background: transparent;
       border: 1px solid #ff8c00;
       color: #ff8c00;
@@ -339,6 +368,11 @@
       border-color: #ff8c00;
     }
 
+    #message-input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     #send-btn {
       padding: 0.75rem 1.5rem;
       background: #ff8c00;
@@ -373,6 +407,10 @@
       cursor: pointer;
       font-weight: bold;
       font-size: 0.9rem;
+    }
+
+    .image-upload-label:active {
+      background: #e07b00;
     }
 
     /* Модальное окно редактирования */
@@ -474,14 +512,14 @@
       }
 
       #user-list li {
-        padding: 1.2rem 1rem;
-        font-size: 1.2rem;
+        padding: 1rem;
+        font-size: 1.1rem;
       }
 
       .notification-badge {
-        min-width: 28px;
-        height: 28px;
-        font-size: 1rem;
+        min-width: 26px;
+        height: 26px;
+        font-size: 0.9rem;
       }
 
       #send-btn {
@@ -519,7 +557,7 @@
     <div class="chat-container">
       <div class="sidebar">
         <div class="sidebar-header">
-          <span>Участники онлайн</span>
+          <span>Чаты</span>
           <button id="change-nick-btn">Сменить ник</button>
         </div>
         <ul id="user-list"></ul>
@@ -528,6 +566,7 @@
         <div id="chat-header">
           <button id="back-btn">←</button>
           <span id="chat-title">Выберите собеседника</span>
+          <span id="typing-indicator"></span>
           <button id="clear-chat-btn" style="display: none;">Очистить чат</button>
         </div>
         <div id="messages"></div>
@@ -576,6 +615,7 @@
     const userListEl = document.getElementById('user-list');
     const chatMain = document.getElementById('chat-main');
     const chatTitle = document.getElementById('chat-title');
+    const typingIndicator = document.getElementById('typing-indicator');
     const messagesDiv = document.getElementById('messages');
     const messageInput = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
@@ -594,10 +634,14 @@
     // Состояние
     let currentUser = null;
     let selectedUser = null;
-    let users = [];
-    let chatHistory = {}; // peerId -> массив сообщений { id, fromName, text, isOwn, read, time, imageUrl }
+    let onlineUsers = []; // только онлайн (id)
+    let allChats = []; // все собеседники (id + name + online)
+    let chatHistory = {}; // peerId -> массив сообщений
     let audioContext = null;
-    let currentEditMessageId = null; // для редактирования
+    let currentEditMessageId = null;
+
+    // Таймер для индикатора печатает
+    let typingTimeout = null;
 
     // ---- Загрузка из localStorage ----
     function loadFromStorage() {
@@ -691,27 +735,66 @@
       }
     });
 
-    // ---- Обновление списка пользователей ----
-    socket.on('user list', (onlineUsers) => {
-      users = onlineUsers.filter(u => u.id !== currentUser?.id);
+    // ---- Обновление списка онлайн-пользователей ----
+    socket.on('user list', (onlineList) => {
+      onlineUsers = onlineList.map(u => u.id);
+      // Обновляем список всех чатов: объединяем онлайн и тех, кто есть в истории
+      const allPeerIds = new Set([...onlineUsers, ...Object.keys(chatHistory)]);
+      allChats = Array.from(allPeerIds).map(id => {
+        const online = onlineList.find(u => u.id === id);
+        return {
+          id,
+          name: online ? online.name : (chatHistory[id]?.[0]?.fromName || 'Неизвестный'),
+          online: !!online
+        };
+      }).sort((a, b) => {
+        // Сначала онлайн, потом офлайн
+        if (a.online && !b.online) return -1;
+        if (!a.online && b.online) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
       renderUserList();
 
-      if (selectedUser && !users.find(u => u.id === selectedUser.id)) {
-        closeChat();
+      // Если выбранный пользователь исчез из онлайна, обновляем его статус и блокируем ввод
+      if (selectedUser) {
+        const updated = allChats.find(c => c.id === selectedUser.id);
+        if (updated) {
+          selectedUser.online = updated.online;
+          if (!updated.online) {
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+            chatTitle.textContent = `Чат с ${updated.name} (офлайн)`;
+          } else {
+            messageInput.disabled = false;
+            sendBtn.disabled = false;
+            chatTitle.textContent = `Чат с ${updated.name}`;
+          }
+        } else {
+          // Собеседник полностью удалён (очистили историю?)
+          closeChat();
+        }
       }
     });
 
     function renderUserList() {
       userListEl.innerHTML = '';
-      users.forEach(user => {
+      allChats.forEach(chat => {
         const li = document.createElement('li');
-        li.dataset.id = user.id;
-        
+        li.dataset.id = chat.id;
+
+        // Индикатор статуса
+        const statusSpan = document.createElement('span');
+        statusSpan.className = `status-indicator ${chat.online ? 'status-online' : 'status-offline'}`;
+        li.appendChild(statusSpan);
+
+        // Имя
         const nameSpan = document.createElement('span');
-        nameSpan.textContent = user.name;
+        nameSpan.textContent = chat.name;
         li.appendChild(nameSpan);
 
-        const history = chatHistory[user.id] || [];
+        // Бейдж непрочитанных
+        const history = chatHistory[chat.id] || [];
         const unreadCount = history.filter(msg => !msg.isOwn && !msg.read).length;
         if (unreadCount > 0) {
           const badge = document.createElement('span');
@@ -720,30 +803,31 @@
           li.appendChild(badge);
         }
 
-        if (selectedUser && selectedUser.id === user.id) {
+        if (selectedUser && selectedUser.id === chat.id) {
           li.classList.add('selected');
         }
 
-        li.addEventListener('click', () => selectUser(user));
+        li.addEventListener('click', () => selectUser(chat));
         userListEl.appendChild(li);
       });
     }
 
     // ---- Выбор собеседника ----
-    function selectUser(user) {
-      selectedUser = user;
-      chatTitle.textContent = `Чат с ${user.name}`;
-      messageInput.disabled = false;
-      sendBtn.disabled = false;
+    function selectUser(chat) {
+      selectedUser = { id: chat.id, name: chat.name, online: chat.online };
+      chatTitle.textContent = chat.online ? `Чат с ${chat.name}` : `Чат с ${chat.name} (офлайн)`;
+      typingIndicator.textContent = '';
+      messageInput.disabled = !chat.online;
+      sendBtn.disabled = !chat.online;
       clearChatBtn.style.display = 'inline-block';
       messageInput.focus();
 
-      if (chatHistory[user.id]) {
-        chatHistory[user.id].forEach(msg => { msg.read = true; });
+      if (chatHistory[chat.id]) {
+        chatHistory[chat.id].forEach(msg => { msg.read = true; });
       }
 
       renderUserList();
-      loadChatHistory(user.id);
+      loadChatHistory(chat.id);
       saveToStorage();
 
       if (window.innerWidth <= 768) {
@@ -762,6 +846,7 @@
     function closeChat() {
       selectedUser = null;
       chatTitle.textContent = 'Выберите собеседника';
+      typingIndicator.textContent = '';
       messageInput.disabled = true;
       sendBtn.disabled = true;
       clearChatBtn.style.display = 'none';
@@ -816,7 +901,6 @@
       currentEditMessageId = null;
     });
 
-    // Закрыть модалку при клике вне
     editModal.addEventListener('click', (e) => {
       if (e.target === editModal) {
         editModal.classList.remove('active');
@@ -828,6 +912,16 @@
     sendBtn.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendMessage();
+    });
+
+    // Отправка события "печатает"
+    messageInput.addEventListener('input', () => {
+      if (!selectedUser || !selectedUser.online) return;
+      socket.emit('typing', { to: selectedUser.id });
+      if (typingTimeout) clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => {
+        socket.emit('stop typing', { to: selectedUser.id });
+      }, 2000);
     });
 
     async function sendMessage() {
@@ -901,6 +995,7 @@
       if (!isOwn) {
         if (isActiveChat) {
           playActiveChatSound();
+          message.read = true; // прочитано, так как чат открыт
         } else {
           playNotificationSound();
         }
@@ -908,10 +1003,23 @@
 
       if (isActiveChat) {
         displayMessage(message, peerId);
-        if (!isOwn) message.read = true;
       }
 
+      // Обновляем список, чтобы отразить непрочитанные
       renderUserList();
+    });
+
+    // ---- События "печатает" ----
+    socket.on('typing', ({ from, fromName }) => {
+      if (selectedUser && selectedUser.id === from) {
+        typingIndicator.textContent = `${fromName} печатает...`;
+      }
+    });
+
+    socket.on('stop typing', ({ from }) => {
+      if (selectedUser && selectedUser.id === from) {
+        typingIndicator.textContent = '';
+      }
     });
 
     // ---- Удаление сообщения (от сервера) ----
@@ -943,7 +1051,7 @@
     // ---- Очистка чата (от сервера) ----
     socket.on('chat cleared', ({ peerId }) => {
       if (chatHistory[peerId]) {
-        chatHistory[peerId] = [];
+        delete chatHistory[peerId];
         saveToStorage();
         if (selectedUser && selectedUser.id === peerId) {
           messagesDiv.innerHTML = '';
@@ -983,7 +1091,6 @@
       timeSpan.textContent = msg.time;
       messageDiv.appendChild(timeSpan);
 
-      // Кнопки действий (только для своих сообщений)
       if (msg.isOwn) {
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'message-actions';

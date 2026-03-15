@@ -29,8 +29,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.post('/upload', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Файл не отправлен' });
-  const fileUrl = `/uploads/${req.file.filename}`;
-  res.json({ url: fileUrl });
+  res.json({ url: `/uploads/${req.file.filename}` });
 });
 
 // Хранилище пользователей: userId -> { id, name, socketId }
@@ -62,8 +61,7 @@ io.on('connection', (socket) => {
     broadcastUserList();
   });
 
-  // Личное сообщение (текст или картинка)
-  socket.on('private message', ({ to, text, imageUrl, messageId }) => {
+  socket.on('private message', ({ to, text, imageUrl }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
 
@@ -77,7 +75,6 @@ io.on('connection', (socket) => {
           to: recipient.id,
           text,
           imageUrl,
-          messageId,
         });
       }
     }
@@ -87,53 +84,31 @@ io.on('connection', (socket) => {
       to: to,
       text,
       imageUrl,
-      messageId,
     });
   });
 
-  // Редактирование сообщения
-  socket.on('edit message', ({ messageId, newText, to }) => {
+  socket.on('typing', ({ to }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
-
     const recipient = users.get(to);
     if (recipient && recipient.socketId) {
       const toSocket = io.sockets.sockets.get(recipient.socketId);
       if (toSocket) {
-        toSocket.emit('edit message', { messageId, newText, from: fromUser.id, to });
+        toSocket.emit('typing', { from: fromUser.id, fromName: fromUser.name });
       }
     }
-    socket.emit('edit message', { messageId, newText, from: fromUser.id, to });
   });
 
-  // Удаление сообщения
-  socket.on('delete message', ({ messageId, to }) => {
+  socket.on('stop typing', ({ to }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
-
     const recipient = users.get(to);
     if (recipient && recipient.socketId) {
       const toSocket = io.sockets.sockets.get(recipient.socketId);
       if (toSocket) {
-        toSocket.emit('delete message', { messageId, from: fromUser.id, to });
+        toSocket.emit('stop typing', { from: fromUser.id });
       }
     }
-    socket.emit('delete message', { messageId, from: fromUser.id, to });
-  });
-
-  // Очистка всего чата с собеседником
-  socket.on('clear chat', ({ to }) => {
-    const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
-    if (!fromUser) return;
-
-    const recipient = users.get(to);
-    if (recipient && recipient.socketId) {
-      const toSocket = io.sockets.sockets.get(recipient.socketId);
-      if (toSocket) {
-        toSocket.emit('clear chat', { from: fromUser.id, to });
-      }
-    }
-    socket.emit('clear chat', { from: fromUser.id, to });
   });
 
   socket.on('disconnect', () => {
