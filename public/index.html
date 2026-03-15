@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-  <title>Оранжевый чат с картинками</title>
+  <title>Оранжевый чат</title>
   <style>
     /* Чёрно-оранжевая тема */
     * {
@@ -153,8 +153,9 @@
     }
 
     #user-list li.selected {
-      background: #ff8c00;
+      background: #b85e00;
       color: #121212;
+      box-shadow: inset 0 0 0 1px rgba(255,140,0,0.5);
     }
 
     .notification-badge {
@@ -205,6 +206,21 @@
       opacity: 0.6;
     }
 
+    #clear-chat-btn {
+      margin-left: auto;
+      background: transparent;
+      border: 1px solid #ff8c00;
+      color: #ff8c00;
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    #clear-chat-btn:active {
+      background: rgba(255,140,0,0.2);
+    }
+
     #messages {
       flex: 1;
       padding: 1rem;
@@ -224,6 +240,7 @@
       word-break: break-word;
       font-size: 1rem;
       line-height: 1.4;
+      position: relative;
     }
 
     .message.own {
@@ -265,7 +282,35 @@
       max-height: 200px;
       border-radius: 8px;
       cursor: pointer;
-      margin-top: 5px;
+      display: block;
+      margin-top: 4px;
+    }
+
+    .message-actions {
+      position: absolute;
+      top: -20px;
+      right: 0;
+      display: flex;
+      gap: 5px;
+      background: #1e1e1e;
+      border-radius: 20px;
+      padding: 2px 5px;
+      border: 1px solid #333;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .message.own:hover .message-actions {
+      opacity: 1;
+    }
+
+    .message-actions button {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 2px 5px;
+      color: #ff8c00;
     }
 
     .input-area {
@@ -279,7 +324,7 @@
     }
 
     #message-input {
-      flex: 2 1 150px;
+      flex: 1 1 200px;
       padding: 0.75rem 1rem;
       border: 1px solid #444;
       border-radius: 30px;
@@ -292,25 +337,6 @@
 
     #message-input:focus {
       border-color: #ff8c00;
-    }
-
-    #image-upload {
-      display: none;
-    }
-
-    .image-upload-label {
-      background: #333;
-      color: #ff8c00;
-      padding: 0.75rem 1rem;
-      border-radius: 30px;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 1rem;
-      white-space: nowrap;
-    }
-
-    .image-upload-label:active {
-      background: #444;
     }
 
     #send-btn {
@@ -335,13 +361,81 @@
       pointer-events: none;
     }
 
-    .selected-image-name {
-      color: #ff8c00;
+    #image-upload {
+      display: none;
+    }
+
+    .image-upload-label {
+      background: #ff8c00;
+      color: #121212;
+      padding: 0.5rem 1rem;
+      border-radius: 30px;
+      cursor: pointer;
+      font-weight: bold;
       font-size: 0.9rem;
-      max-width: 120px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    }
+
+    /* Модальное окно редактирования */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #1e1e1e;
+      padding: 2rem;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 500px;
+      color: #fff;
+    }
+
+    .modal-content textarea {
+      width: 100%;
+      min-height: 100px;
+      margin: 1rem 0;
+      padding: 0.5rem;
+      border: 1px solid #444;
+      border-radius: 8px;
+      background: #2a2a2a;
+      color: #fff;
+      font-size: 1rem;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .modal-buttons button {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    #save-edit-btn {
+      background: #ff8c00;
+      color: #121212;
+    }
+
+    #cancel-edit-btn {
+      background: #444;
+      color: #fff;
     }
 
     @media (max-width: 768px) {
@@ -390,10 +484,6 @@
         font-size: 1rem;
       }
 
-      .input-area {
-        flex-wrap: nowrap;
-      }
-
       #send-btn {
         padding: 0.7rem 1.2rem;
         font-size: 1rem;
@@ -401,11 +491,6 @@
       }
 
       #message-input {
-        padding: 0.7rem 1rem;
-        font-size: 1rem;
-      }
-
-      .image-upload-label {
         padding: 0.7rem 1rem;
         font-size: 1rem;
       }
@@ -443,15 +528,27 @@
         <div id="chat-header">
           <button id="back-btn">←</button>
           <span id="chat-title">Выберите собеседника</span>
+          <button id="clear-chat-btn" style="display: none;">Очистить чат</button>
         </div>
         <div id="messages"></div>
         <div class="input-area">
           <input type="text" id="message-input" placeholder="Сообщение" disabled>
-          <label for="image-upload" class="image-upload-label">📷</label>
+          <label for="image-upload" class="image-upload-label" id="upload-label">📷</label>
           <input type="file" id="image-upload" accept="image/*">
-          <span id="selected-file-name" class="selected-image-name"></span>
           <button id="send-btn" disabled>Отправить</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальное окно редактирования -->
+  <div id="edit-modal" class="modal">
+    <div class="modal-content">
+      <h3>Редактировать сообщение</h3>
+      <textarea id="edit-textarea"></textarea>
+      <div class="modal-buttons">
+        <button id="save-edit-btn">Сохранить</button>
+        <button id="cancel-edit-btn">Отмена</button>
       </div>
     </div>
   </div>
@@ -460,11 +557,17 @@
   <script>
     const socket = io();
 
+    // Генерация уникального ID на клиенте
     function generateClientId() {
-      return Date.now() + '-' + Math.random().toString(36).substr(2, 9) + '-' + Math.random().toString(36).substr(2, 5);
+      return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     }
 
-    // DOM элементы
+    // Генерация ID для сообщения
+    function generateMessageId() {
+      return 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    // Элементы DOM
     const loginDiv = document.getElementById('login');
     const chatDiv = document.getElementById('chat');
     const nameInput = document.getElementById('name-input');
@@ -478,15 +581,23 @@
     const sendBtn = document.getElementById('send-btn');
     const backBtn = document.getElementById('back-btn');
     const changeNickBtn = document.getElementById('change-nick-btn');
+    const clearChatBtn = document.getElementById('clear-chat-btn');
     const imageUpload = document.getElementById('image-upload');
-    const selectedFileNameSpan = document.getElementById('selected-file-name');
+    const uploadLabel = document.getElementById('upload-label');
 
+    // Модальное окно редактирования
+    const editModal = document.getElementById('edit-modal');
+    const editTextarea = document.getElementById('edit-textarea');
+    const saveEditBtn = document.getElementById('save-edit-btn');
+    const cancelEditBtn = document.getElementById('cancel-edit-btn');
+
+    // Состояние
     let currentUser = null;
     let selectedUser = null;
     let users = [];
-    let chatHistory = {};
+    let chatHistory = {}; // peerId -> массив сообщений { id, fromName, text, isOwn, read, time, imageUrl }
     let audioContext = null;
-    let pendingImageFile = null;
+    let currentEditMessageId = null; // для редактирования
 
     // ---- Загрузка из localStorage ----
     function loadFromStorage() {
@@ -504,9 +615,13 @@
         loginDiv.style.display = 'none';
         chatDiv.style.display = 'flex';
         socket.emit('join', { name: savedName, userId: savedId });
+        if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
       }
     }
 
+    // ---- Сохранение в localStorage ----
     function saveToStorage() {
       if (currentUser) {
         localStorage.setItem('userName', currentUser.name);
@@ -515,6 +630,7 @@
       }
     }
 
+    // ---- Очистка storage (смена ника) ----
     function clearStorageAndRelogin() {
       localStorage.removeItem('userName');
       localStorage.removeItem('userId');
@@ -525,7 +641,7 @@
       location.reload();
     }
 
-    // ---- Вход ----
+    // ---- Вход по кнопке ----
     joinBtn.addEventListener('click', () => {
       const name = nameInput.value.trim();
       if (!name) return;
@@ -544,8 +660,10 @@
       if (e.key === 'Enter') joinBtn.click();
     });
 
+    // ---- Смена ника ----
     changeNickBtn.addEventListener('click', clearStorageAndRelogin);
 
+    // ---- Ошибка входа ----
     socket.on('joinError', (msg) => {
       errorDiv.textContent = msg;
       if (currentUser) {
@@ -553,6 +671,7 @@
       }
     });
 
+    // ---- Успешный вход ----
     socket.on('joined', (user) => {
       currentUser = user;
       localStorage.setItem('userName', user.name);
@@ -564,18 +683,19 @@
       chatDiv.style.display = 'flex';
     });
 
-    socket.on('kicked', ({ message, userId }) => {
-      if (currentUser && userId === currentUser.id) {
-        alert(message);
+    // ---- Предупреждение о kicked ----
+    socket.on('kicked', (data) => {
+      if (data.userId === currentUser?.id) {
+        alert(data.message);
         location.reload();
       }
-      // Игнорируем, если сообщение предназначено другому пользователю
     });
 
-    // ---- Список пользователей ----
+    // ---- Обновление списка пользователей ----
     socket.on('user list', (onlineUsers) => {
       users = onlineUsers.filter(u => u.id !== currentUser?.id);
       renderUserList();
+
       if (selectedUser && !users.find(u => u.id === selectedUser.id)) {
         closeChat();
       }
@@ -609,11 +729,13 @@
       });
     }
 
+    // ---- Выбор собеседника ----
     function selectUser(user) {
       selectedUser = user;
       chatTitle.textContent = `Чат с ${user.name}`;
       messageInput.disabled = false;
       sendBtn.disabled = false;
+      clearChatBtn.style.display = 'inline-block';
       messageInput.focus();
 
       if (chatHistory[user.id]) {
@@ -633,7 +755,7 @@
       messagesDiv.innerHTML = '';
       const history = chatHistory[peerId] || [];
       history.forEach(msg => {
-        addMessageToChat(msg.fromName, msg.text, msg.isOwn, msg.time, msg.imageUrl);
+        displayMessage(msg, peerId);
       });
     }
 
@@ -642,10 +764,10 @@
       chatTitle.textContent = 'Выберите собеседника';
       messageInput.disabled = true;
       sendBtn.disabled = true;
+      clearChatBtn.style.display = 'none';
       messagesDiv.innerHTML = '';
       renderUserList();
       userListEl.scrollTop = 0;
-      clearSelectedFile();
 
       if (window.innerWidth <= 768) {
         chatMain.classList.remove('active');
@@ -654,24 +776,55 @@
 
     backBtn.addEventListener('click', closeChat);
 
-    // ---- Работа с файлом ----
-    imageUpload.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        pendingImageFile = file;
-        selectedFileNameSpan.textContent = file.name;
-      } else {
-        clearSelectedFile();
+    // ---- Очистка чата ----
+    clearChatBtn.addEventListener('click', () => {
+      if (!selectedUser) return;
+      if (confirm('Очистить всю историю сообщений с этим пользователем?')) {
+        socket.emit('clear chat', { peerId: selectedUser.id });
       }
     });
 
-    function clearSelectedFile() {
-      pendingImageFile = null;
-      imageUpload.value = '';
-      selectedFileNameSpan.textContent = '';
+    // ---- Удаление сообщения ----
+    function deleteMessage(messageId) {
+      if (!selectedUser) return;
+      if (confirm('Удалить это сообщение?')) {
+        socket.emit('delete message', { messageId, peerId: selectedUser.id });
+      }
     }
 
-    // ---- Отправка сообщения (текст + картинка) ----
+    // ---- Редактирование сообщения ----
+    function editMessage(messageId, currentText) {
+      currentEditMessageId = messageId;
+      editTextarea.value = currentText;
+      editModal.classList.add('active');
+    }
+
+    saveEditBtn.addEventListener('click', () => {
+      const newText = editTextarea.value.trim();
+      if (!newText || !selectedUser || !currentEditMessageId) return;
+      socket.emit('edit message', {
+        messageId: currentEditMessageId,
+        peerId: selectedUser.id,
+        newText
+      });
+      editModal.classList.remove('active');
+      currentEditMessageId = null;
+    });
+
+    cancelEditBtn.addEventListener('click', () => {
+      editModal.classList.remove('active');
+      currentEditMessageId = null;
+    });
+
+    // Закрыть модалку при клике вне
+    editModal.addEventListener('click', (e) => {
+      if (e.target === editModal) {
+        editModal.classList.remove('active');
+        currentEditMessageId = null;
+      }
+    });
+
+    // ---- Отправка сообщения (текст или картинка) ----
     sendBtn.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendMessage();
@@ -679,47 +832,67 @@
 
     async function sendMessage() {
       const text = messageInput.value.trim();
-      if (!text && !pendingImageFile) return;
-      if (!selectedUser) return;
+      if (!text && !imageUpload.files.length) return;
 
-      let imageUrl = null;
-
-      if (pendingImageFile) {
+      if (imageUpload.files.length) {
+        const file = imageUpload.files[0];
         const formData = new FormData();
-        formData.append('image', pendingImageFile);
+        formData.append('image', file);
         try {
-          const res = await fetch('/upload', {
-            method: 'POST',
-            body: formData,
-          });
-          if (!res.ok) throw new Error('Ошибка загрузки');
+          const res = await fetch('/upload', { method: 'POST', body: formData });
           const data = await res.json();
-          imageUrl = data.url;
+          socket.emit('private message', {
+            to: selectedUser.id,
+            text: text || '',
+            imageUrl: data.url,
+          });
         } catch (err) {
-          console.error('Ошибка загрузки изображения:', err);
-          alert('Не удалось загрузить изображение');
-          return;
+          console.error('Ошибка загрузки:', err);
+        }
+        imageUpload.value = '';
+      } else {
+        socket.emit('private message', {
+          to: selectedUser.id,
+          text,
+        });
+      }
+      messageInput.value = '';
+    }
+
+    // ---- Вставка изображения из буфера (Ctrl+V) ----
+    messageInput.addEventListener('paste', async (e) => {
+      const items = (e.clipboardData || window.clipboardData).items;
+      for (let item of items) {
+        if (item.type.indexOf('image') === 0) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          const formData = new FormData();
+          formData.append('image', file);
+          try {
+            const res = await fetch('/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            socket.emit('private message', {
+              to: selectedUser.id,
+              text: '',
+              imageUrl: data.url,
+            });
+          } catch (err) {
+            console.error('Ошибка загрузки из буфера:', err);
+          }
+          break;
         }
       }
-
-      socket.emit('private message', {
-        to: selectedUser.id,
-        text: text || '',
-        imageUrl,
-      });
-
-      messageInput.value = '';
-      clearSelectedFile();
-    }
+    });
 
     // ---- Получение сообщения ----
     socket.on('private message', ({ from, fromName, to, text, imageUrl }) => {
       const isOwn = from === currentUser.id;
       const peerId = isOwn ? to : from;
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const messageId = generateMessageId();
 
       if (!chatHistory[peerId]) chatHistory[peerId] = [];
-      const message = { fromName, text, imageUrl, isOwn, read: isOwn, time };
+      const message = { id: messageId, fromName, text, imageUrl, isOwn, read: isOwn, time };
       chatHistory[peerId].push(message);
       saveToStorage();
 
@@ -734,42 +907,108 @@
       }
 
       if (isActiveChat) {
-        addMessageToChat(fromName, text, isOwn, time, imageUrl);
+        displayMessage(message, peerId);
         if (!isOwn) message.read = true;
       }
 
       renderUserList();
     });
 
-    function addMessageToChat(senderName, text, isOwn, time, imageUrl) {
+    // ---- Удаление сообщения (от сервера) ----
+    socket.on('message deleted', ({ messageId, peerId }) => {
+      if (chatHistory[peerId]) {
+        chatHistory[peerId] = chatHistory[peerId].filter(msg => msg.id !== messageId);
+        saveToStorage();
+        if (selectedUser && selectedUser.id === peerId) {
+          loadChatHistory(peerId);
+        }
+        renderUserList();
+      }
+    });
+
+    // ---- Редактирование сообщения (от сервера) ----
+    socket.on('message edited', ({ messageId, peerId, newText }) => {
+      if (chatHistory[peerId]) {
+        const msg = chatHistory[peerId].find(m => m.id === messageId);
+        if (msg) {
+          msg.text = newText;
+          saveToStorage();
+          if (selectedUser && selectedUser.id === peerId) {
+            loadChatHistory(peerId);
+          }
+        }
+      }
+    });
+
+    // ---- Очистка чата (от сервера) ----
+    socket.on('chat cleared', ({ peerId }) => {
+      if (chatHistory[peerId]) {
+        chatHistory[peerId] = [];
+        saveToStorage();
+        if (selectedUser && selectedUser.id === peerId) {
+          messagesDiv.innerHTML = '';
+        }
+        renderUserList();
+      }
+    });
+
+    // ---- Отображение одного сообщения в DOM ----
+    function displayMessage(msg, peerId) {
       const messageDiv = document.createElement('div');
-      messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
-      
-      if (!isOwn) {
+      messageDiv.className = `message ${msg.isOwn ? 'own' : 'other'}`;
+      messageDiv.dataset.messageId = msg.id;
+
+      if (!msg.isOwn) {
         const nameSpan = document.createElement('div');
         nameSpan.className = 'sender';
-        nameSpan.textContent = senderName;
+        nameSpan.textContent = msg.fromName;
         messageDiv.appendChild(nameSpan);
       }
-      
-      if (text) {
+
+      if (msg.text) {
         const textSpan = document.createElement('div');
-        textSpan.textContent = text;
+        textSpan.textContent = msg.text;
         messageDiv.appendChild(textSpan);
       }
 
-      if (imageUrl) {
+      if (msg.imageUrl) {
         const img = document.createElement('img');
-        img.src = imageUrl;
-        img.addEventListener('click', () => window.open(imageUrl, '_blank'));
+        img.src = msg.imageUrl;
+        img.addEventListener('click', () => window.open(msg.imageUrl));
         messageDiv.appendChild(img);
       }
-      
+
       const timeSpan = document.createElement('div');
       timeSpan.className = 'time';
-      timeSpan.textContent = time;
+      timeSpan.textContent = msg.time;
       messageDiv.appendChild(timeSpan);
-      
+
+      // Кнопки действий (только для своих сообщений)
+      if (msg.isOwn) {
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'message-actions';
+        
+        const editBtn = document.createElement('button');
+        editBtn.textContent = '✏️';
+        editBtn.title = 'Редактировать';
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          editMessage(msg.id, msg.text || '');
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = '🗑️';
+        deleteBtn.title = 'Удалить';
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteMessage(msg.id);
+        });
+
+        actionsDiv.appendChild(editBtn);
+        actionsDiv.appendChild(deleteBtn);
+        messageDiv.appendChild(actionsDiv);
+      }
+
       messagesDiv.appendChild(messageDiv);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
@@ -805,8 +1044,10 @@
       oscillator.stop(ctx.currentTime + duration);
     }
 
+    // ---- При загрузке страницы пытаемся восстановить сессию ----
     window.addEventListener('load', loadFromStorage);
 
+    // ---- Обработка изменения размера окна ----
     window.addEventListener('resize', () => {
       if (window.innerWidth > 768) {
         chatMain.classList.remove('active');
@@ -817,6 +1058,11 @@
           chatMain.classList.remove('active');
         }
       }
+    });
+
+    // ---- Обработка выбора файла через кнопку ----
+    uploadLabel.addEventListener('click', () => {
+      imageUpload.click();
     });
   </script>
 </body>
