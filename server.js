@@ -9,34 +9,29 @@ const io = socketIo(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Хранилище пользователей: userId -> { id, name, socketId }
-const users = new Map();
+const users = new Map(); // userId -> { id, name, socketId }
 
 io.on('connection', (socket) => {
   console.log('Новое подключение:', socket.id);
 
   socket.on('join', ({ name, userId }) => {
-    // Если userId не передан (на всякий случай) – генерируем
     if (!userId) {
       userId = generateId();
     }
 
     if (users.has(userId)) {
       const existing = users.get(userId);
-      // Если старый сокет существует и это не текущий, отключаем старый
       if (existing.socketId && existing.socketId !== socket.id) {
         const oldSocket = io.sockets.sockets.get(existing.socketId);
         if (oldSocket) {
-          oldSocket.emit('kicked', 'Вы вошли с другого устройства или перезагрузили страницу');
+          oldSocket.emit('kicked', { message: 'Вы вошли с другого устройства или перезагрузили страницу', userId: existing.id });
           oldSocket.disconnect(true);
         }
       }
-      // Обновляем имя и сокет
       existing.name = name;
       existing.socketId = socket.id;
       users.set(userId, existing);
     } else {
-      // Новый пользователь
       users.set(userId, { id: userId, name, socketId: socket.id });
     }
 
@@ -45,7 +40,6 @@ io.on('connection', (socket) => {
   });
 
   socket.on('private message', ({ to, text }) => {
-    // Находим отправителя по socket.id
     let fromUser = null;
     for (let user of users.values()) {
       if (user.socketId === socket.id) {
@@ -67,7 +61,6 @@ io.on('connection', (socket) => {
         });
       }
     }
-    // Отправляем подтверждение отправителю
     socket.emit('private message', {
       from: fromUser.id,
       fromName: fromUser.name,
@@ -77,7 +70,6 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    // Удаляем пользователя из Map по socket.id
     for (let [userId, user] of users.entries()) {
       if (user.socketId === socket.id) {
         users.delete(userId);

@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
   <title>Оранжевый чат</title>
   <style>
-    /* Чёрно-оранжевая тема */
     * {
       margin: 0;
       padding: 0;
@@ -220,6 +219,8 @@
       padding: 0.75rem 1rem;
       border-radius: 20px;
       word-wrap: break-word;
+      overflow-wrap: break-word;
+      word-break: break-word;
       font-size: 1rem;
       line-height: 1.4;
     }
@@ -409,12 +410,10 @@
   <script>
     const socket = io();
 
-    // Генерация уникального ID на клиенте
     function generateClientId() {
-      return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      return Date.now() + '-' + Math.random().toString(36).substr(2, 9) + '-' + Math.random().toString(36).substr(2, 5);
     }
 
-    // Элементы DOM
     const loginDiv = document.getElementById('login');
     const chatDiv = document.getElementById('chat');
     const nameInput = document.getElementById('name-input');
@@ -429,14 +428,12 @@
     const backBtn = document.getElementById('back-btn');
     const changeNickBtn = document.getElementById('change-nick-btn');
 
-    // Состояние
     let currentUser = null;
     let selectedUser = null;
     let users = [];
     let chatHistory = {};
     let audioContext = null;
 
-    // ---- Загрузка из localStorage ----
     function loadFromStorage() {
       const savedName = localStorage.getItem('userName');
       const savedId = localStorage.getItem('userId');
@@ -452,11 +449,9 @@
         loginDiv.style.display = 'none';
         chatDiv.style.display = 'flex';
         socket.emit('join', { name: savedName, userId: savedId });
-        // Аудиоконтекст создадим позже, после жеста
       }
     }
 
-    // ---- Сохранение в localStorage ----
     function saveToStorage() {
       if (currentUser) {
         localStorage.setItem('userName', currentUser.name);
@@ -465,7 +460,6 @@
       }
     }
 
-    // ---- Очистка storage (смена ника) ----
     function clearStorageAndRelogin() {
       localStorage.removeItem('userName');
       localStorage.removeItem('userId');
@@ -473,11 +467,9 @@
       currentUser = null;
       selectedUser = null;
       chatHistory = {};
-      // Перезагружаем страницу, чтобы вернуться на экран входа
       location.reload();
     }
 
-    // ---- Вход по кнопке ----
     joinBtn.addEventListener('click', () => {
       const name = nameInput.value.trim();
       if (!name) return;
@@ -496,19 +488,15 @@
       if (e.key === 'Enter') joinBtn.click();
     });
 
-    // ---- Смена ника ----
     changeNickBtn.addEventListener('click', clearStorageAndRelogin);
 
-    // ---- Ошибка входа (например, если имя занято – но теперь мы не проверяем уникальность) ----
     socket.on('joinError', (msg) => {
       errorDiv.textContent = msg;
-      // Если была попытка автоматического входа, очищаем
       if (currentUser) {
         clearStorageAndRelogin();
       }
     });
 
-    // ---- Успешный вход ----
     socket.on('joined', (user) => {
       currentUser = user;
       localStorage.setItem('userName', user.name);
@@ -520,14 +508,12 @@
       chatDiv.style.display = 'flex';
     });
 
-    // ---- Предупреждение о "kicked" (при входе с другого устройства) ----
-    socket.on('kicked', (msg) => {
-      alert(msg);
-      // Можно просто перезагрузить страницу, чтобы освободить состояние
+    socket.on('kicked', ({ message, userId }) => {
+      if (userId !== currentUser?.id) return; // игнорируем чужие
+      alert(message);
       location.reload();
     });
 
-    // ---- Обновление списка пользователей ----
     socket.on('user list', (onlineUsers) => {
       users = onlineUsers.filter(u => u.id !== currentUser?.id);
       renderUserList();
@@ -609,7 +595,6 @@
 
     backBtn.addEventListener('click', closeChat);
 
-    // ---- Отправка сообщения ----
     sendBtn.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendMessage();
@@ -627,7 +612,6 @@
       messageInput.value = '';
     }
 
-    // ---- Получение сообщения ----
     socket.on('private message', ({ from, fromName, to, text }) => {
       const isOwn = from === currentUser.id;
       const peerId = isOwn ? to : from;
@@ -680,7 +664,6 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    // ---- Звуки ----
     function playNotificationSound() {
       playBeep(800, 0.2, 0.1);
     }
@@ -711,10 +694,8 @@
       oscillator.stop(ctx.currentTime + duration);
     }
 
-    // ---- При загрузке страницы пытаемся восстановить сессию ----
     window.addEventListener('load', loadFromStorage);
 
-    // ---- Обработка изменения размера окна ----
     window.addEventListener('resize', () => {
       if (window.innerWidth > 768) {
         chatMain.classList.remove('active');
