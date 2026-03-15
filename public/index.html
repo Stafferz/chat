@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
   <title>Оранжевый чат</title>
   <style>
-    /* Все стили остаются без изменений (из предыдущего файла) */
     * {
       margin: 0;
       padding: 0;
@@ -164,6 +163,7 @@
       align-items: center;
       flex: 1;
       min-width: 0;
+      gap: 5px;
     }
 
     .status-indicator {
@@ -171,7 +171,7 @@
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      margin-right: 8px;
+      margin-right: 5px;
       flex-shrink: 0;
     }
     .status-online {
@@ -187,6 +187,13 @@
       overflow: hidden;
       text-overflow: ellipsis;
       flex: 1;
+    }
+
+    .typing-indicator-chat {
+      font-size: 0.8rem;
+      color: #ff8c00;
+      margin-left: 5px;
+      font-style: italic;
     }
 
     .notification-badge {
@@ -270,7 +277,7 @@
       background: rgba(255,140,0,0.2);
     }
 
-    #typing-indicator {
+    #typing-indicator-header {
       font-size: 0.9rem;
       color: #ff8c00;
       margin-left: 10px;
@@ -403,11 +410,6 @@
       font-size: 0.9rem;
     }
 
-    /* Модальное окно больше не нужно, удаляем стили для него? Оставим на всякий случай, но скроем */
-    .modal {
-      display: none !important;
-    }
-
     @media (max-width: 768px) {
       body, #chat, .chat-container {
         overflow-x: hidden;
@@ -498,7 +500,7 @@
         <div id="chat-header">
           <button id="back-btn">←</button>
           <span id="chat-title">Выберите собеседника</span>
-          <span id="typing-indicator"></span>
+          <span id="typing-indicator-header"></span>
           <button id="clear-chat-btn" style="display: none;">Очистить чат</button>
         </div>
         <div id="messages"></div>
@@ -512,9 +514,6 @@
     </div>
   </div>
 
-  <!-- Модальное окно больше не используется, но оставляем пустым для совместимости -->
-  <div id="edit-modal" class="modal"></div>
-
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
@@ -522,11 +521,6 @@
     // Генерация уникального ID на клиенте
     function generateClientId() {
       return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    }
-
-    // Генерация ID для сообщения (нужен для возможной идентификации, но удаление сообщений убрано)
-    function generateMessageId() {
-      return 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
     // Элементы DOM
@@ -538,7 +532,7 @@
     const chatListEl = document.getElementById('chat-list');
     const chatMain = document.getElementById('chat-main');
     const chatTitle = document.getElementById('chat-title');
-    const typingIndicator = document.getElementById('typing-indicator');
+    const typingIndicatorHeader = document.getElementById('typing-indicator-header');
     const messagesDiv = document.getElementById('messages');
     const messageInput = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
@@ -553,7 +547,7 @@
     let selectedUser = null; // { id, name, online? }
     let onlineUsers = [];    // массив онлайн пользователей (с сервера)
 
-    // Структура chatHistory: { [peerId]: { messages: [], peerName: string } }
+    // Структура chatHistory: { [peerId]: { messages: [], peerName: string, isTyping: boolean } }
     let chatHistory = {};
 
     let audioContext = null;
@@ -561,7 +555,7 @@
     // Таймер для "печатает"
     let typingTimer = null;
 
-    // ---- Загрузка из localStorage ----
+    // ---- Загрузка из localStorage с преобразованием старой структуры ----
     function loadFromStorage() {
       const savedName = localStorage.getItem('userName');
       const savedId = localStorage.getItem('userId');
@@ -572,13 +566,34 @@
         if (savedHistory) {
           try {
             const parsed = JSON.parse(savedHistory);
-            // Преобразуем старый формат в новый, если нужно
-            if (typeof parsed === 'object' && parsed !== null) {
+            // Преобразуем старый формат (массив) в новый { messages, peerName, isTyping }
+            if (Array.isArray(parsed)) {
+              const newHistory = {};
+              for (let peerId in parsed) {
+                const msgs = parsed[peerId];
+                if (Array.isArray(msgs)) {
+                  let peerName = null;
+                  for (let i = msgs.length - 1; i >= 0; i--) {
+                    if (!msgs[i].isOwn) {
+                      peerName = msgs[i].fromName;
+                      break;
+                    }
+                  }
+                  if (!peerName && msgs.length > 0) {
+                    peerName = msgs[0].fromName;
+                  }
+                  newHistory[peerId] = { messages: msgs, peerName: peerName || 'Неизвестно', isTyping: false };
+                }
+              }
+              chatHistory = newHistory;
+            } else if (typeof parsed === 'object' && parsed !== null) {
               chatHistory = parsed;
-              // Убедимся, что у каждого чата есть поле peerName
+              // Добавляем isTyping, если нет
               for (let peerId in chatHistory) {
+                if (chatHistory[peerId].isTyping === undefined) {
+                  chatHistory[peerId].isTyping = false;
+                }
                 if (!chatHistory[peerId].peerName && chatHistory[peerId].messages.length > 0) {
-                  // Восстановим peerName из последнего сообщения собеседника
                   const msgs = chatHistory[peerId].messages;
                   for (let i = msgs.length - 1; i >= 0; i--) {
                     if (!msgs[i].isOwn) {
@@ -587,7 +602,6 @@
                     }
                   }
                   if (!chatHistory[peerId].peerName) {
-                    // Если все сообщения свои, используем имя из первого сообщения (оно своё, но это временно)
                     chatHistory[peerId].peerName = msgs[0]?.fromName || 'Неизвестно';
                   }
                 }
@@ -688,10 +702,7 @@
               msg.fromName = u.name;
             }
           });
-          // Обновляем peerName для этого чата
-          if (chatHistory[u.id].peerName) {
-            chatHistory[u.id].peerName = u.name;
-          }
+          chatHistory[u.id].peerName = u.name;
         }
       });
 
@@ -710,7 +721,6 @@
       // Добавляем офлайн-пользователей из истории, которых нет в онлайн
       Object.keys(chatHistory).forEach(peerId => {
         if (peerId !== currentUser?.id && !onlineUsers.some(u => u.id === peerId)) {
-          // Используем сохранённое peerName
           const peerName = chatHistory[peerId].peerName || 'Неизвестно';
           allChats.push({ id: peerId, name: peerName, online: false });
         }
@@ -740,6 +750,15 @@
 
         chatItemDiv.appendChild(statusSpan);
         chatItemDiv.appendChild(nameSpan);
+
+        // Индикатор печати в списке
+        if (chat.online && chatHistory[chat.id]?.isTyping) {
+          const typingSpan = document.createElement('span');
+          typingSpan.className = 'typing-indicator-chat';
+          typingSpan.textContent = '✏️';
+          chatItemDiv.appendChild(typingSpan);
+        }
+
         li.appendChild(chatItemDiv);
 
         const history = chatHistory[chat.id]?.messages || [];
@@ -786,13 +805,20 @@
     function selectUser(chat) {
       selectedUser = chat;
       chatTitle.textContent = `Чат с ${chat.name}`;
-      typingIndicator.textContent = '';
+      typingIndicatorHeader.textContent = '';
 
       const isOnline = chat.online;
       messageInput.disabled = !isOnline;
       sendBtn.disabled = !isOnline;
       if (!isOnline) {
         chatTitle.textContent += ' (офлайн)';
+      }
+
+      // Обновляем peerName в истории
+      if (!chatHistory[chat.id]) {
+        chatHistory[chat.id] = { messages: [], peerName: chat.name, isTyping: false };
+      } else {
+        chatHistory[chat.id].peerName = chat.name;
       }
 
       clearChatBtn.style.display = 'inline-block';
@@ -815,14 +841,14 @@
       messagesDiv.innerHTML = '';
       const history = chatHistory[peerId]?.messages || [];
       history.forEach(msg => {
-        displayMessage(msg, peerId);
+        displayMessage(msg);
       });
     }
 
     function closeChat() {
       selectedUser = null;
       chatTitle.textContent = 'Выберите собеседника';
-      typingIndicator.textContent = '';
+      typingIndicatorHeader.textContent = '';
       messageInput.disabled = true;
       sendBtn.disabled = true;
       clearChatBtn.style.display = 'none';
@@ -930,10 +956,10 @@
       const isOwn = from === currentUser.id;
       const peerId = isOwn ? to : from;
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const messageId = generateMessageId();
+      const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
       if (!chatHistory[peerId]) {
-        chatHistory[peerId] = { messages: [], peerName: null };
+        chatHistory[peerId] = { messages: [], peerName: null, isTyping: false };
       }
 
       const message = { id: messageId, fromName, text, imageUrl, isOwn, read: isOwn, time };
@@ -942,12 +968,6 @@
       // Обновляем peerName, если сообщение от собеседника
       if (!isOwn) {
         chatHistory[peerId].peerName = fromName;
-      } else if (!chatHistory[peerId].peerName) {
-        // Если это первое сообщение от нас и peerName ещё не установлен, устанавливаем его из selectedUser.name
-        // (в момент отправки selectedUser уже содержит имя собеседника)
-        if (selectedUser && selectedUser.id === peerId) {
-          chatHistory[peerId].peerName = selectedUser.name;
-        }
       }
 
       saveToStorage();
@@ -963,7 +983,7 @@
       }
 
       if (isActiveChat) {
-        displayMessage(message, peerId);
+        displayMessage(message);
         if (!isOwn) message.read = true;
       }
 
@@ -974,7 +994,6 @@
     socket.on('chat cleared', ({ peerId }) => {
       if (chatHistory[peerId]) {
         chatHistory[peerId].messages = [];
-        // peerName оставляем, чтобы имя не потерялось
         saveToStorage();
         if (selectedUser && selectedUser.id === peerId) {
           messagesDiv.innerHTML = '';
@@ -985,19 +1004,27 @@
 
     // ---- Индикатор печатает ----
     socket.on('typing', ({ from, fromName }) => {
+      if (chatHistory[from]) {
+        chatHistory[from].isTyping = true;
+        buildChatList();
+      }
       if (selectedUser && selectedUser.id === from) {
-        typingIndicator.textContent = `${fromName} печатает...`;
+        typingIndicatorHeader.textContent = `${fromName} печатает...`;
       }
     });
 
     socket.on('stop typing', ({ from }) => {
+      if (chatHistory[from]) {
+        chatHistory[from].isTyping = false;
+        buildChatList();
+      }
       if (selectedUser && selectedUser.id === from) {
-        typingIndicator.textContent = '';
+        typingIndicatorHeader.textContent = '';
       }
     });
 
     // ---- Отображение одного сообщения в DOM ----
-    function displayMessage(msg, peerId) {
+    function displayMessage(msg) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${msg.isOwn ? 'own' : 'other'}`;
       messageDiv.dataset.messageId = msg.id;
