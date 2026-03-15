@@ -17,7 +17,8 @@ webPush.setVapidDetails(
   process.env.VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
-
+console.log('VAPID Public Key from env:', process.env.VAPID_PUBLIC_KEY);
+console.log('VAPID Private Key (first 10 chars):', process.env.VAPID_PRIVATE_KEY ? process.env.VAPID_PRIVATE_KEY.substring(0, 10) : 'undefined');
 // Настройка multer для загрузки файлов (изображения и видео)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
