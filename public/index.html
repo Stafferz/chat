@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
   <title>Мобильный мессенджер</title>
   <style>
+    /* Все стили остаются без изменений (из предыдущего ответа) */
     * {
       margin: 0;
       padding: 0;
@@ -18,10 +19,9 @@
       justify-content: center;
       align-items: center;
       background: #f0f0f0;
-      overflow-x: hidden; /* предотвращает горизонтальный скролл на мобильных */
+      overflow-x: hidden;
     }
 
-    /* Экран входа */
     #login {
       background: white;
       padding: 2rem;
@@ -75,21 +75,20 @@
       font-size: 0.9rem;
     }
 
-    /* Основной интерфейс чата */
     #chat {
       display: none;
       width: 100%;
       height: 100%;
       background: white;
-      overflow-x: hidden; /* для мобильных */
+      overflow-x: hidden;
     }
 
     .chat-container {
       display: flex;
       width: 100%;
       height: 100%;
-      position: relative; /* для правильного позиционирования .main на мобильных */
-      overflow-x: hidden; /* предотвращает появление полосы прокрутки при трансформации */
+      position: relative;
+      overflow-x: hidden;
     }
 
     .sidebar {
@@ -175,7 +174,7 @@
       font-size: 1.5rem;
       cursor: pointer;
       padding: 0.5rem 1rem;
-      display: none; /* по умолчанию скрыта */
+      display: none;
       color: #007bff;
       font-weight: bold;
     }
@@ -252,7 +251,7 @@
       border-radius: 30px;
       font-size: 1rem;
       outline: none;
-      min-width: 0; /* предотвращает переполнение */
+      min-width: 0;
     }
 
     #message-input:focus {
@@ -281,7 +280,6 @@
       pointer-events: none;
     }
 
-    /* Мобильные стили (ширина экрана до 768px) */
     @media (max-width: 768px) {
       body, #chat, .chat-container {
         overflow-x: hidden;
@@ -317,7 +315,6 @@
         display: inline-block;
       }
 
-      /* Увеличиваем размеры для тач-управления */
       #user-list li {
         padding: 1.2rem 1rem;
         font-size: 1.2rem;
@@ -329,7 +326,6 @@
         font-size: 1rem;
       }
 
-      /* Уменьшаем отступы кнопки, чтобы она помещалась в строку */
       #send-btn {
         padding: 0.7rem 1.2rem;
         font-size: 1rem;
@@ -352,7 +348,6 @@
       }
     }
 
-    /* Для очень маленьких экранов (до 480px) */
     @media (max-width: 480px) {
       .message {
         max-width: 90%;
@@ -412,31 +407,93 @@
     const backBtn = document.getElementById('back-btn');
 
     // Состояние
-    let currentUser = null;
-    let selectedUser = null;
-    let users = [];
-    let chatHistory = {}; // peerId -> массив сообщений { fromName, text, isOwn, read, time }
+    let currentUser = null;          // { id, name }
+    let selectedUser = null;         // { id, name }
+    let users = [];                  // онлайн пользователи
+    let chatHistory = {};             // peerId -> массив сообщений
     let audioContext = null;
 
-    // ---- Вход ----
+    // ---- Загрузка сохранённых данных из localStorage ----
+    function loadFromStorage() {
+      const savedName = localStorage.getItem('userName');
+      const savedId = localStorage.getItem('userId');
+      const savedHistory = localStorage.getItem('chatHistory');
+      if (savedName && savedId) {
+        // Пытаемся восстановить сессию
+        currentUser = { id: savedId, name: savedName };
+        nameInput.value = savedName; // для отображения
+        // Сначала показываем интерфейс чата (он будет скрыт, если не получится подключиться)
+        loginDiv.style.display = 'none';
+        chatDiv.style.display = 'flex';
+        // Загружаем историю, если есть
+        if (savedHistory) {
+          try {
+            chatHistory = JSON.parse(savedHistory);
+          } catch (e) {
+            console.warn('Ошибка парсинга истории', e);
+          }
+        }
+        // Пытаемся подключиться к серверу с сохранённым именем
+        socket.emit('join', savedName);
+        // Аудиоконтекст инициализируем позже, после жеста
+      }
+    }
+
+    // ---- Сохранение в localStorage ----
+    function saveToStorage() {
+      if (currentUser) {
+        localStorage.setItem('userName', currentUser.name);
+        localStorage.setItem('userId', currentUser.id);
+        localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+      }
+    }
+
+    // ---- Очистка storage при ошибке входа ----
+    function clearStorage() {
+      localStorage.removeItem('userName');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('chatHistory');
+      currentUser = null;
+      chatHistory = {};
+    }
+
+    // ---- Вход (обработчик кнопки) ----
     joinBtn.addEventListener('click', () => {
       const name = nameInput.value.trim();
       if (!name) return;
       socket.emit('join', name);
-      // Инициализация аудио после жеста пользователя
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      // Аудиоконтекст инициализируем после жеста
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
     });
 
     nameInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') joinBtn.click();
     });
 
+    // ---- Ошибка входа (имя занято) ----
     socket.on('joinError', (msg) => {
       errorDiv.textContent = msg;
+      // Если была попытка автоматического входа, очищаем storage и показываем экран логина
+      if (currentUser) {
+        clearStorage();
+        loginDiv.style.display = 'block';
+        chatDiv.style.display = 'none';
+        currentUser = null;
+        selectedUser = null;
+      }
     });
 
+    // ---- Успешный вход ----
     socket.on('joined', (user) => {
       currentUser = user;
+      // Если раньше не было audioContext (например, при автоматическом входе), создаём
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      // Сохраняем в localStorage
+      saveToStorage();
       loginDiv.style.display = 'none';
       chatDiv.style.display = 'flex';
     });
@@ -446,7 +503,6 @@
       users = onlineUsers.filter(u => u.id !== currentUser?.id);
       renderUserList();
 
-      // Если выбранный пользователь вышел, закрываем чат
       if (selectedUser && !users.find(u => u.id === selectedUser.id)) {
         closeChat();
       }
@@ -480,7 +536,6 @@
       });
     }
 
-    // ---- Выбор собеседника ----
     function selectUser(user) {
       selectedUser = user;
       chatTitle.textContent = `Чат с ${user.name}`;
@@ -488,21 +543,19 @@
       sendBtn.disabled = false;
       messageInput.focus();
 
-      // Помечаем сообщения прочитанными
       if (chatHistory[user.id]) {
         chatHistory[user.id].forEach(msg => { msg.read = true; });
       }
 
       renderUserList();
       loadChatHistory(user.id);
+      saveToStorage(); // сохраняем статус прочтения
 
-      // На мобильных устройствах показываем окно чата
       if (window.innerWidth <= 768) {
         chatMain.classList.add('active');
       }
     }
 
-    // Загрузить историю сообщений для выбранного пользователя
     function loadChatHistory(peerId) {
       messagesDiv.innerHTML = '';
       const history = chatHistory[peerId] || [];
@@ -511,7 +564,6 @@
       });
     }
 
-    // ---- Закрыть чат (кнопка назад) ----
     function closeChat() {
       selectedUser = null;
       chatTitle.textContent = 'Выберите собеседника';
@@ -519,8 +571,6 @@
       sendBtn.disabled = true;
       messagesDiv.innerHTML = '';
       renderUserList();
-
-      // Прокручиваем список пользователей вверх
       userListEl.scrollTop = 0;
 
       if (window.innerWidth <= 768) {
@@ -546,10 +596,9 @@
       });
 
       messageInput.value = '';
-      // Сообщение добавится после получения эха от сервера (в обработчике socket.on)
     }
 
-    // ---- Получение сообщения (свои и чужие) ----
+    // ---- Получение сообщения ----
     socket.on('private message', ({ from, fromName, to, text }) => {
       const isOwn = from === currentUser.id;
       const peerId = isOwn ? to : from;
@@ -558,14 +607,21 @@
       if (!chatHistory[peerId]) chatHistory[peerId] = [];
       const message = { fromName, text, isOwn, read: isOwn, time };
       chatHistory[peerId].push(message);
+      saveToStorage(); // сохраняем историю
 
-      // Если сообщение от другого и не в текущем чате – звук
-      if (!isOwn && (!selectedUser || selectedUser.id !== peerId)) {
-        playNotificationSound();
+      // Определяем, активен ли чат с этим пользователем
+      const isActiveChat = selectedUser && selectedUser.id === peerId;
+
+      // Воспроизводим звук в зависимости от ситуации
+      if (!isOwn) {
+        if (isActiveChat) {
+          playActiveChatSound();   // сообщение в открытом чате
+        } else {
+          playNotificationSound(); // фоновое уведомление
+        }
       }
 
-      // Если открыт чат с этим собеседником, показываем сообщение
-      if (selectedUser && selectedUser.id === peerId) {
+      if (isActiveChat) {
         addMessageToChat(fromName, text, isOwn, time);
         if (!isOwn) message.read = true;
       }
@@ -573,7 +629,6 @@
       renderUserList();
     });
 
-    // ---- Добавление сообщения в DOM с временем ----
     function addMessageToChat(senderName, text, isOwn, time) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
@@ -598,35 +653,47 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    // ---- Звук ----
+    // ---- Звуковые сигналы ----
     function playNotificationSound() {
+      playBeep(800, 0.2, 0.1); // частота, громкость, длительность
+    }
+
+    function playActiveChatSound() {
+      playBeep(600, 0.1, 0.05); // тише и короче
+    }
+
+    function playBeep(freq, gainValue, duration) {
       if (!audioContext) return;
       if (audioContext.state === 'suspended') {
-        audioContext.resume().then(() => beep());
+        audioContext.resume().then(() => {
+          beep(audioContext, freq, gainValue, duration);
+        });
       } else {
-        beep();
+        beep(audioContext, freq, gainValue, duration);
       }
     }
 
-    function beep() {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+    function beep(ctx, freq, gainValue, duration) {
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
       oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      oscillator.frequency.value = 800;
-      gainNode.gain.value = 0.2;
+      gainNode.connect(ctx.destination);
+      oscillator.frequency.value = freq;
+      gainNode.gain.value = gainValue;
       oscillator.start();
-      oscillator.stop(audioContext.currentTime + 0.1);
+      oscillator.stop(ctx.currentTime + duration);
     }
 
-    // ---- Обработка изменения размера окна (для мобильной навигации) ----
+    // ---- При загрузке страницы пытаемся восстановить сессию ----
+    window.addEventListener('load', () => {
+      loadFromStorage();
+    });
+
+    // ---- Обработка изменения размера окна ----
     window.addEventListener('resize', () => {
       if (window.innerWidth > 768) {
-        // На десктопе всегда показываем обе панели
         chatMain.classList.remove('active');
-        // Если есть выбранный пользователь, оставляем как есть (обе панели видны)
       } else {
-        // На мобильных: если есть выбранный пользователь, показываем чат, иначе скрываем
         if (selectedUser) {
           chatMain.classList.add('active');
         } else {
