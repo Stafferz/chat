@@ -82,11 +82,11 @@
       background: white;
     }
 
-    /* Общий контейнер — флекс, но на мобильных будет column */
     .chat-container {
       display: flex;
       width: 100%;
       height: 100%;
+      position: relative; /* для правильного позиционирования .main на мобильных */
     }
 
     .sidebar {
@@ -220,6 +220,19 @@
       color: #555;
     }
 
+    .message .time {
+      font-size: 0.7rem;
+      margin-top: 4px;
+      opacity: 0.7;
+      text-align: right;
+    }
+    .message.own .time {
+      color: rgba(255,255,255,0.8);
+    }
+    .message.other .time {
+      color: #666;
+    }
+
     .input-area {
       display: flex;
       padding: 0.75rem;
@@ -236,6 +249,7 @@
       border-radius: 30px;
       font-size: 1rem;
       outline: none;
+      min-width: 0; /* предотвращает переполнение */
     }
 
     #message-input:focus {
@@ -252,10 +266,16 @@
       font-weight: bold;
       cursor: pointer;
       min-width: 80px;
+      white-space: nowrap;
     }
 
     #send-btn:active {
       background: #0056b3;
+    }
+
+    #send-btn:disabled {
+      opacity: 0.5;
+      pointer-events: none;
     }
 
     /* Мобильные стили (ширина экрана до 768px) */
@@ -302,14 +322,16 @@
         font-size: 1rem;
       }
 
+      /* Уменьшаем отступы кнопки, чтобы она помещалась в строку */
       #send-btn {
-        padding: 0.9rem 1.8rem;
-        font-size: 1.1rem;
+        padding: 0.7rem 1.2rem;
+        font-size: 1rem;
+        min-width: 70px;
       }
 
       #message-input {
-        padding: 0.9rem 1.2rem;
-        font-size: 1.1rem;
+        padding: 0.7rem 1rem;
+        font-size: 1rem;
       }
 
       #chat-header {
@@ -386,7 +408,7 @@
     let currentUser = null;
     let selectedUser = null;
     let users = [];
-    let chatHistory = {};
+    let chatHistory = {}; // peerId -> массив сообщений { fromName, text, isOwn, read, time }
     let audioContext = null;
 
     // ---- Вход ----
@@ -394,6 +416,7 @@
       const name = nameInput.value.trim();
       if (!name) return;
       socket.emit('join', name);
+      // Инициализация аудио после жеста пользователя
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
     });
 
@@ -477,7 +500,7 @@
       messagesDiv.innerHTML = '';
       const history = chatHistory[peerId] || [];
       history.forEach(msg => {
-        addMessageToChat(msg.fromName, msg.text, msg.isOwn);
+        addMessageToChat(msg.fromName, msg.text, msg.isOwn, msg.time);
       });
     }
 
@@ -513,15 +536,17 @@
       });
 
       messageInput.value = '';
+      // Сообщение добавится после получения эха от сервера (в обработчике socket.on)
     }
 
-    // ---- Получение сообщения ----
+    // ---- Получение сообщения (свои и чужие) ----
     socket.on('private message', ({ from, fromName, to, text }) => {
       const isOwn = from === currentUser.id;
       const peerId = isOwn ? to : from;
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       if (!chatHistory[peerId]) chatHistory[peerId] = [];
-      const message = { fromName, text, isOwn, read: isOwn };
+      const message = { fromName, text, isOwn, read: isOwn, time };
       chatHistory[peerId].push(message);
 
       // Если сообщение от другого и не в текущем чате – звук
@@ -531,25 +556,34 @@
 
       // Если открыт чат с этим собеседником, показываем сообщение
       if (selectedUser && selectedUser.id === peerId) {
-        addMessageToChat(fromName, text, isOwn);
+        addMessageToChat(fromName, text, isOwn, time);
         if (!isOwn) message.read = true;
       }
 
       renderUserList();
     });
 
-    function addMessageToChat(senderName, text, isOwn) {
+    // ---- Добавление сообщения в DOM с временем ----
+    function addMessageToChat(senderName, text, isOwn, time) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
+      
       if (!isOwn) {
         const nameSpan = document.createElement('div');
         nameSpan.className = 'sender';
         nameSpan.textContent = senderName;
         messageDiv.appendChild(nameSpan);
       }
+      
       const textSpan = document.createElement('div');
       textSpan.textContent = text;
       messageDiv.appendChild(textSpan);
+      
+      const timeSpan = document.createElement('div');
+      timeSpan.className = 'time';
+      timeSpan.textContent = time;
+      messageDiv.appendChild(timeSpan);
+      
       messagesDiv.appendChild(messageDiv);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
