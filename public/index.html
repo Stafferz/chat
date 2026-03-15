@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
   <title>Оранжевый чат</title>
   <style>
+    /* ... все стили без изменений ... */
     * {
       margin: 0;
       padding: 0;
@@ -1109,10 +1110,7 @@
       }
     });
 
-    // ---- Обработка выбора файла через кнопку ----
-    uploadLabel.addEventListener('click', () => {
-      imageUpload.click();
-    });
+    // ---- (Убрано: uploadLabel.click() больше не нужен, так как label работает через for) ----
   </script>
 </body>
 </html>
