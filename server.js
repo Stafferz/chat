@@ -2,26 +2,19 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
-const compression = require('compression'); // опционально, для ускорения
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Сжатие ответов (ускоряет загрузку)
-app.use(compression());
-
-// Раздаём статические файлы
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Хранилище онлайн-пользователей
-const users = new Map();
+const users = new Map(); // socket.id -> { id, name }
 
 io.on('connection', (socket) => {
   console.log('Новое подключение:', socket.id);
 
   socket.on('join', (name) => {
-    // Проверка уникальности имени (упрощённо)
     let nameTaken = false;
     for (let [_, user] of users) {
       if (user.name === name) {
@@ -41,17 +34,21 @@ io.on('connection', (socket) => {
   socket.on('private message', ({ to, text }) => {
     const fromUser = users.get(socket.id);
     if (!fromUser) return;
+
     const toSocket = io.sockets.sockets.get(to);
     if (toSocket) {
       toSocket.emit('private message', {
         from: socket.id,
         fromName: fromUser.name,
+        to: to,
         text,
       });
     }
+    // Отправляем подтверждение отправителю (тоже с полем to)
     socket.emit('private message', {
       from: socket.id,
       fromName: fromUser.name,
+      to: to,
       text,
     });
   });

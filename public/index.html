@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Простой мессенджер без БД</title>
+  <title>Мессенджер с историей и звуком</title>
   <style>
     * {
       margin: 0;
@@ -73,6 +73,9 @@
       padding: 0.75rem 1rem;
       border-bottom: 1px solid #eee;
       cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
     #user-list li:hover {
       background: #e9ecef;
@@ -80,6 +83,13 @@
     #user-list li.selected {
       background: #007bff;
       color: white;
+    }
+    .notification-badge {
+      background: red;
+      color: white;
+      border-radius: 50%;
+      padding: 0.2rem 0.5rem;
+      font-size: 0.8rem;
     }
     .main {
       flex: 1;
@@ -169,7 +179,7 @@
   <script>
     const socket = io();
 
-    // Элементы
+    // Элементы DOM
     const loginDiv = document.getElementById('login');
     const chatDiv = document.getElementById('chat');
     const nameInput = document.getElementById('name-input');
@@ -181,34 +191,38 @@
     const messageInput = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
 
-    let currentUser = null; // { id, name }
-    let selectedUser = null; // { id, name }
-    let users = []; // все онлайн
+    // Состояние
+    let currentUser = null;          // { id, name }
+    let selectedUser = null;         // { id, name }
+    let users = [];                  // все онлайн пользователи
+    let chatHistory = {};            // { peerId: [message] }
+    let audioContext = null;         // для звука
 
-    // Обработка входа
+    // ---- Вход ----
     joinBtn.addEventListener('click', () => {
       const name = nameInput.value.trim();
       if (!name) return;
       socket.emit('join', name);
+      
+      // Инициализация аудиоконтекста после жеста пользователя
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
     });
 
     nameInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') joinBtn.click();
     });
 
-    // Ошибка при входе
     socket.on('joinError', (msg) => {
       errorDiv.textContent = msg;
     });
 
-    // Успешный вход
     socket.on('joined', (user) => {
       currentUser = user;
       loginDiv.style.display = 'none';
       chatDiv.style.display = 'flex';
     });
 
-    // Получение списка пользователей
+    // ---- Обновление списка пользователей ----
     socket.on('user list', (onlineUsers) => {
       users = onlineUsers.filter(u => u.id !== currentUser?.id);
       renderUserList();
@@ -227,16 +241,32 @@
       userListEl.innerHTML = '';
       users.forEach(user => {
         const li = document.createElement('li');
-        li.textContent = user.name;
         li.dataset.id = user.id;
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = user.name;
+        li.appendChild(nameSpan);
+
+        // Если есть непрочитанные сообщения в истории, показываем бейдж
+        const history = chatHistory[user.id] || [];
+        const unreadCount = history.filter(msg => !msg.isOwn && !msg.read).length;
+        if (unreadCount > 0) {
+          const badge = document.createElement('span');
+          badge.className = 'notification-badge';
+          badge.textContent = unreadCount;
+          li.appendChild(badge);
+        }
+
         if (selectedUser && selectedUser.id === user.id) {
           li.classList.add('selected');
         }
+
         li.addEventListener('click', () => selectUser(user));
         userListEl.appendChild(li);
       });
     }
 
+    // ---- Выбор собеседника ----
     function selectUser(user) {
       selectedUser = user;
       chatHeader.textContent = `Чат с ${user.name}`;
@@ -244,18 +274,23 @@
       sendBtn.disabled = false;
       messageInput.focus();
 
-      // Подсветка в списке
-      document.querySelectorAll('#user-list li').forEach(li => {
-        li.classList.remove('selected');
-        if (li.dataset.id === user.id) li.classList.add('selected');
-      });
+      // Помечаем все сообщения этого чата как прочитанные
+      if (chatHistory[user.id]) {
+        chatHistory[user.id].forEach(msg => { msg.read = true; });
+      }
 
-      // Очищаем сообщения? Можно оставить историю текущего чата, но для простоты будем показывать только новые
-      // В данном варианте история не хранится, поэтому просто очистим
+      // Обновляем список пользователей (чтобы убрать бейдж)
+      renderUserList();
+
+      // Загружаем историю сообщений
       messagesDiv.innerHTML = '';
+      const history = chatHistory[user.id] || [];
+      history.forEach(msg => {
+        addMessageToChat(msg.fromName, msg.text, msg.isOwn);
+      });
     }
 
-    // Отправка сообщения
+    // ---- Отправка сообщения ----
     sendBtn.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendMessage();
@@ -271,22 +306,39 @@
       });
 
       messageInput.value = '';
+      // Не добавляем сообщение сразу – дожидаемся эха от сервера
     }
 
-    // Получение сообщения
-    socket.on('private message', ({ from, fromName, text }) => {
-      // Определяем, своё или чужое
+    // ---- Получение сообщения (свои и чужие) ----
+    socket.on('private message', ({ from, fromName, to, text }) => {
       const isOwn = from === currentUser.id;
+      // Собеседник: для своего сообщения – to, для чужого – from
+      const peerId = isOwn ? to : from;
 
-      // Если сообщение от текущего собеседника или своё (для текущего собеседника), показываем
-      if (selectedUser && (from === selectedUser.id || isOwn)) {
-        addMessageToChat(fromName, text, isOwn);
-      } else {
-        // Можно добавить уведомление о новом сообщении не из текущего чата
-        // Для простоты просто проигнорируем
+      // Сохраняем в историю
+      if (!chatHistory[peerId]) chatHistory[peerId] = [];
+      const message = { fromName, text, isOwn, read: isOwn }; // свои сразу считаем прочитанными
+      chatHistory[peerId].push(message);
+
+      // Если это сообщение от другого и не в текущем чате – звук
+      if (!isOwn && (!selectedUser || selectedUser.id !== peerId)) {
+        playNotificationSound();
       }
+
+      // Если открыт чат с этим собеседником, показываем сообщение
+      if (selectedUser && selectedUser.id === peerId) {
+        addMessageToChat(fromName, text, isOwn);
+        // Если это чужое сообщение, помечаем как прочитанное
+        if (!isOwn) {
+          message.read = true;
+        }
+      }
+
+      // Обновляем список пользователей (для бейджей)
+      renderUserList();
     });
 
+    // ---- Добавление сообщения в DOM ----
     function addMessageToChat(senderName, text, isOwn) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
@@ -301,6 +353,30 @@
       messageDiv.appendChild(textSpan);
       messagesDiv.appendChild(messageDiv);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // ---- Звуковое уведомление ----
+    function playNotificationSound() {
+      if (!audioContext) return; // на всякий случай
+
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+          beep(audioContext);
+        });
+      } else {
+        beep(audioContext);
+      }
+    }
+
+    function beep(ctx) {
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      oscillator.frequency.value = 800;
+      gainNode.gain.value = 0.2;
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.1);
     }
   </script>
 </body>
