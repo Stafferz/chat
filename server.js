@@ -2,14 +2,44 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Настройка multer для загрузки изображений
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
+    cb(null, uniqueName);
+  }
+});
+const upload = multer({ storage });
 
-const users = new Map(); // userId -> { id, name, socketId }
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Эндпоинт для загрузки изображений
+app.post('/upload', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'Файл не отправлен' });
+  }
+  const fileUrl = `/uploads/${req.file.filename}`;
+  res.json({ url: fileUrl });
+});
+
+// Хранилище пользователей
+const users = new Map();
 
 io.on('connection', (socket) => {
   console.log('Новое подключение:', socket.id);
@@ -39,7 +69,7 @@ io.on('connection', (socket) => {
     broadcastUserList();
   });
 
-  socket.on('private message', ({ to, text }) => {
+  socket.on('private message', ({ to, text, imageUrl }) => {
     let fromUser = null;
     for (let user of users.values()) {
       if (user.socketId === socket.id) {
@@ -58,6 +88,7 @@ io.on('connection', (socket) => {
           fromName: fromUser.name,
           to: recipient.id,
           text,
+          imageUrl,
         });
       }
     }
@@ -66,6 +97,7 @@ io.on('connection', (socket) => {
       fromName: fromUser.name,
       to: to,
       text,
+      imageUrl,
     });
   });
 

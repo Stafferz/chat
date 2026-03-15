@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-  <title>Оранжевый чат</title>
+  <title>Оранжевый чат с картинками</title>
   <style>
+    /* Чёрно-оранжевая тема */
     * {
       margin: 0;
       padding: 0;
@@ -259,6 +260,14 @@
       color: #aaa;
     }
 
+    .message img {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 5px;
+    }
+
     .input-area {
       display: flex;
       padding: 0.75rem;
@@ -266,10 +275,11 @@
       background: #1e1e1e;
       gap: 8px;
       align-items: center;
+      flex-wrap: wrap;
     }
 
     #message-input {
-      flex: 1;
+      flex: 2 1 150px;
       padding: 0.75rem 1rem;
       border: 1px solid #444;
       border-radius: 30px;
@@ -282,6 +292,25 @@
 
     #message-input:focus {
       border-color: #ff8c00;
+    }
+
+    #image-upload {
+      display: none;
+    }
+
+    .image-upload-label {
+      background: #333;
+      color: #ff8c00;
+      padding: 0.75rem 1rem;
+      border-radius: 30px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1rem;
+      white-space: nowrap;
+    }
+
+    .image-upload-label:active {
+      background: #444;
     }
 
     #send-btn {
@@ -304,6 +333,15 @@
     #send-btn:disabled {
       opacity: 0.5;
       pointer-events: none;
+    }
+
+    .selected-image-name {
+      color: #ff8c00;
+      font-size: 0.9rem;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     @media (max-width: 768px) {
@@ -352,6 +390,10 @@
         font-size: 1rem;
       }
 
+      .input-area {
+        flex-wrap: nowrap;
+      }
+
       #send-btn {
         padding: 0.7rem 1.2rem;
         font-size: 1rem;
@@ -359,6 +401,11 @@
       }
 
       #message-input {
+        padding: 0.7rem 1rem;
+        font-size: 1rem;
+      }
+
+      .image-upload-label {
         padding: 0.7rem 1rem;
         font-size: 1rem;
       }
@@ -400,6 +447,9 @@
         <div id="messages"></div>
         <div class="input-area">
           <input type="text" id="message-input" placeholder="Сообщение" disabled>
+          <label for="image-upload" class="image-upload-label">📷</label>
+          <input type="file" id="image-upload" accept="image/*">
+          <span id="selected-file-name" class="selected-image-name"></span>
           <button id="send-btn" disabled>Отправить</button>
         </div>
       </div>
@@ -414,6 +464,7 @@
       return Date.now() + '-' + Math.random().toString(36).substr(2, 9) + '-' + Math.random().toString(36).substr(2, 5);
     }
 
+    // DOM элементы
     const loginDiv = document.getElementById('login');
     const chatDiv = document.getElementById('chat');
     const nameInput = document.getElementById('name-input');
@@ -427,13 +478,17 @@
     const sendBtn = document.getElementById('send-btn');
     const backBtn = document.getElementById('back-btn');
     const changeNickBtn = document.getElementById('change-nick-btn');
+    const imageUpload = document.getElementById('image-upload');
+    const selectedFileNameSpan = document.getElementById('selected-file-name');
 
     let currentUser = null;
     let selectedUser = null;
     let users = [];
     let chatHistory = {};
     let audioContext = null;
+    let pendingImageFile = null;
 
+    // ---- Загрузка из localStorage ----
     function loadFromStorage() {
       const savedName = localStorage.getItem('userName');
       const savedId = localStorage.getItem('userId');
@@ -470,6 +525,7 @@
       location.reload();
     }
 
+    // ---- Вход ----
     joinBtn.addEventListener('click', () => {
       const name = nameInput.value.trim();
       if (!name) return;
@@ -509,15 +565,17 @@
     });
 
     socket.on('kicked', ({ message, userId }) => {
-      if (userId !== currentUser?.id) return; // игнорируем чужие
-      alert(message);
-      location.reload();
+      if (currentUser && userId === currentUser.id) {
+        alert(message);
+        location.reload();
+      }
+      // Игнорируем, если сообщение предназначено другому пользователю
     });
 
+    // ---- Список пользователей ----
     socket.on('user list', (onlineUsers) => {
       users = onlineUsers.filter(u => u.id !== currentUser?.id);
       renderUserList();
-
       if (selectedUser && !users.find(u => u.id === selectedUser.id)) {
         closeChat();
       }
@@ -575,7 +633,7 @@
       messagesDiv.innerHTML = '';
       const history = chatHistory[peerId] || [];
       history.forEach(msg => {
-        addMessageToChat(msg.fromName, msg.text, msg.isOwn, msg.time);
+        addMessageToChat(msg.fromName, msg.text, msg.isOwn, msg.time, msg.imageUrl);
       });
     }
 
@@ -587,6 +645,7 @@
       messagesDiv.innerHTML = '';
       renderUserList();
       userListEl.scrollTop = 0;
+      clearSelectedFile();
 
       if (window.innerWidth <= 768) {
         chatMain.classList.remove('active');
@@ -595,30 +654,72 @@
 
     backBtn.addEventListener('click', closeChat);
 
+    // ---- Работа с файлом ----
+    imageUpload.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        pendingImageFile = file;
+        selectedFileNameSpan.textContent = file.name;
+      } else {
+        clearSelectedFile();
+      }
+    });
+
+    function clearSelectedFile() {
+      pendingImageFile = null;
+      imageUpload.value = '';
+      selectedFileNameSpan.textContent = '';
+    }
+
+    // ---- Отправка сообщения (текст + картинка) ----
     sendBtn.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendMessage();
     });
 
-    function sendMessage() {
+    async function sendMessage() {
       const text = messageInput.value.trim();
-      if (!text || !selectedUser) return;
+      if (!text && !pendingImageFile) return;
+      if (!selectedUser) return;
+
+      let imageUrl = null;
+
+      if (pendingImageFile) {
+        const formData = new FormData();
+        formData.append('image', pendingImageFile);
+        try {
+          const res = await fetch('/upload', {
+            method: 'POST',
+            body: formData,
+          });
+          if (!res.ok) throw new Error('Ошибка загрузки');
+          const data = await res.json();
+          imageUrl = data.url;
+        } catch (err) {
+          console.error('Ошибка загрузки изображения:', err);
+          alert('Не удалось загрузить изображение');
+          return;
+        }
+      }
 
       socket.emit('private message', {
         to: selectedUser.id,
-        text,
+        text: text || '',
+        imageUrl,
       });
 
       messageInput.value = '';
+      clearSelectedFile();
     }
 
-    socket.on('private message', ({ from, fromName, to, text }) => {
+    // ---- Получение сообщения ----
+    socket.on('private message', ({ from, fromName, to, text, imageUrl }) => {
       const isOwn = from === currentUser.id;
       const peerId = isOwn ? to : from;
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       if (!chatHistory[peerId]) chatHistory[peerId] = [];
-      const message = { fromName, text, isOwn, read: isOwn, time };
+      const message = { fromName, text, imageUrl, isOwn, read: isOwn, time };
       chatHistory[peerId].push(message);
       saveToStorage();
 
@@ -633,14 +734,14 @@
       }
 
       if (isActiveChat) {
-        addMessageToChat(fromName, text, isOwn, time);
+        addMessageToChat(fromName, text, isOwn, time, imageUrl);
         if (!isOwn) message.read = true;
       }
 
       renderUserList();
     });
 
-    function addMessageToChat(senderName, text, isOwn, time) {
+    function addMessageToChat(senderName, text, isOwn, time, imageUrl) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
       
@@ -651,9 +752,18 @@
         messageDiv.appendChild(nameSpan);
       }
       
-      const textSpan = document.createElement('div');
-      textSpan.textContent = text;
-      messageDiv.appendChild(textSpan);
+      if (text) {
+        const textSpan = document.createElement('div');
+        textSpan.textContent = text;
+        messageDiv.appendChild(textSpan);
+      }
+
+      if (imageUrl) {
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.addEventListener('click', () => window.open(imageUrl, '_blank'));
+        messageDiv.appendChild(img);
+      }
       
       const timeSpan = document.createElement('div');
       timeSpan.className = 'time';
@@ -664,6 +774,7 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
+    // ---- Звуки ----
     function playNotificationSound() {
       playBeep(800, 0.2, 0.1);
     }
