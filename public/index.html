@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-  <title>Мобильный мессенджер</title>
+  <title>Чёрно-оранжевый мессенджер</title>
   <style>
-    /* Все стили остаются без изменений (из предыдущего ответа) */
     * {
       margin: 0;
       padding: 0;
@@ -18,44 +17,48 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      background: #f0f0f0;
+      background: #121212; /* тёмный фон */
       overflow-x: hidden;
     }
 
+    /* Экран входа */
     #login {
-      background: white;
+      background: #1e1e1e;
       padding: 2rem;
       border-radius: 16px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
       width: 90%;
       max-width: 400px;
       text-align: center;
+      border: 1px solid #ff8c00;
     }
 
     #login h2 {
       margin-bottom: 1.5rem;
-      color: #333;
+      color: #ff8c00;
     }
 
     #login input {
       width: 100%;
       padding: 1rem;
       margin: 1rem 0;
-      border: 1px solid #ddd;
+      border: 1px solid #333;
       border-radius: 30px;
       font-size: 1rem;
       outline: none;
+      background: #2a2a2a;
+      color: #fff;
       transition: border 0.2s;
     }
 
     #login input:focus {
-      border-color: #007bff;
+      border-color: #ff8c00;
     }
 
     #login button {
       padding: 1rem 2rem;
-      background: #007bff;
-      color: white;
+      background: #ff8c00;
+      color: #121212;
       border: none;
       border-radius: 30px;
       font-size: 1.1rem;
@@ -66,20 +69,21 @@
     }
 
     #login button:active {
-      background: #0056b3;
+      background: #e07b00;
     }
 
     #error {
-      color: red;
+      color: #ff4444;
       margin-top: 1rem;
       font-size: 0.9rem;
     }
 
+    /* Основной интерфейс чата */
     #chat {
       display: none;
       width: 100%;
       height: 100%;
-      background: white;
+      background: #121212;
       overflow-x: hidden;
     }
 
@@ -93,8 +97,8 @@
 
     .sidebar {
       width: 300px;
-      background: #f8f9fa;
-      border-right: 1px solid #ddd;
+      background: #1e1e1e;
+      border-right: 1px solid #333;
       display: flex;
       flex-direction: column;
       transition: transform 0.3s ease;
@@ -102,10 +106,28 @@
 
     .sidebar h3 {
       padding: 1.2rem 1rem;
-      background: #007bff;
-      color: white;
+      background: #ff8c00;
+      color: #121212;
       margin: 0;
       font-size: 1.2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #change-nick-btn {
+      background: transparent;
+      border: 1px solid #121212;
+      color: #121212;
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: normal;
+    }
+
+    #change-nick-btn:active {
+      background: rgba(0,0,0,0.1);
     }
 
     #user-list {
@@ -118,27 +140,28 @@
 
     #user-list li {
       padding: 1rem;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid #333;
       cursor: pointer;
       display: flex;
       justify-content: space-between;
       align-items: center;
       font-size: 1.1rem;
+      color: #fff;
       transition: background 0.2s;
     }
 
     #user-list li:active {
-      background: #e9ecef;
+      background: #2a2a2a;
     }
 
     #user-list li.selected {
-      background: #007bff;
-      color: white;
+      background: #ff8c00;
+      color: #121212;
     }
 
     .notification-badge {
-      background: red;
-      color: white;
+      background: #ff8c00;
+      color: #121212;
       border-radius: 50%;
       min-width: 24px;
       height: 24px;
@@ -154,18 +177,19 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      background: #fff;
+      background: #121212;
     }
 
     #chat-header {
       padding: 1rem;
-      background: #f8f9fa;
-      border-bottom: 1px solid #ddd;
+      background: #1e1e1e;
+      border-bottom: 1px solid #333;
       font-weight: bold;
       font-size: 1.2rem;
       display: flex;
       align-items: center;
       gap: 10px;
+      color: #ff8c00;
     }
 
     #back-btn {
@@ -175,7 +199,7 @@
       cursor: pointer;
       padding: 0.5rem 1rem;
       display: none;
-      color: #007bff;
+      color: #ff8c00;
       font-weight: bold;
     }
 
@@ -204,14 +228,15 @@
 
     .message.own {
       align-self: flex-end;
-      background: #007bff;
-      color: white;
+      background: #ff8c00;
+      color: #121212;
       border-bottom-right-radius: 4px;
     }
 
     .message.other {
       align-self: flex-start;
-      background: #e9ecef;
+      background: #2a2a2a;
+      color: #fff;
       border-bottom-left-radius: 4px;
     }
 
@@ -219,7 +244,7 @@
       font-size: 0.85rem;
       font-weight: bold;
       margin-bottom: 0.25rem;
-      color: #555;
+      color: #ff8c00;
     }
 
     .message .time {
@@ -229,17 +254,17 @@
       text-align: right;
     }
     .message.own .time {
-      color: rgba(255,255,255,0.8);
+      color: #121212;
     }
     .message.other .time {
-      color: #666;
+      color: #aaa;
     }
 
     .input-area {
       display: flex;
       padding: 0.75rem;
-      border-top: 1px solid #ddd;
-      background: #f8f9fa;
+      border-top: 1px solid #333;
+      background: #1e1e1e;
       gap: 8px;
       align-items: center;
     }
@@ -247,21 +272,23 @@
     #message-input {
       flex: 1;
       padding: 0.75rem 1rem;
-      border: 1px solid #ccc;
+      border: 1px solid #333;
       border-radius: 30px;
       font-size: 1rem;
       outline: none;
       min-width: 0;
+      background: #2a2a2a;
+      color: #fff;
     }
 
     #message-input:focus {
-      border-color: #007bff;
+      border-color: #ff8c00;
     }
 
     #send-btn {
       padding: 0.75rem 1.5rem;
-      background: #007bff;
-      color: white;
+      background: #ff8c00;
+      color: #121212;
       border: none;
       border-radius: 30px;
       font-size: 1rem;
@@ -272,7 +299,7 @@
     }
 
     #send-btn:active {
-      background: #0056b3;
+      background: #e07b00;
     }
 
     #send-btn:disabled {
@@ -280,6 +307,7 @@
       pointer-events: none;
     }
 
+    /* Мобильные стили */
     @media (max-width: 768px) {
       body, #chat, .chat-container {
         overflow-x: hidden;
@@ -301,7 +329,7 @@
         position: absolute;
         top: 0;
         left: 0;
-        background: white;
+        background: #121212;
         transform: translateX(100%);
         transition: transform 0.3s ease;
         z-index: 10;
@@ -371,7 +399,10 @@
   <div id="chat">
     <div class="chat-container">
       <div class="sidebar">
-        <h3>Участники онлайн</h3>
+        <h3>
+          Участники онлайн
+          <button id="change-nick-btn">Сменить ник</button>
+        </h3>
         <ul id="user-list"></ul>
       </div>
       <div class="main" id="chat-main">
@@ -405,6 +436,7 @@
     const messageInput = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
     const backBtn = document.getElementById('back-btn');
+    const changeNickBtn = document.getElementById('change-nick-btn');
 
     // Состояние
     let currentUser = null;          // { id, name }
@@ -419,23 +451,20 @@
       const savedId = localStorage.getItem('userId');
       const savedHistory = localStorage.getItem('chatHistory');
       if (savedName && savedId) {
-        // Пытаемся восстановить сессию
+        // Сохраняем в currentUser, но не пытаемся войти автоматически
+        // Подключение произойдёт после загрузки страницы, но нужно отправить событие join с этими данными
         currentUser = { id: savedId, name: savedName };
-        nameInput.value = savedName; // для отображения
-        // Сначала показываем интерфейс чата (он будет скрыт, если не получится подключиться)
-        loginDiv.style.display = 'none';
-        chatDiv.style.display = 'flex';
-        // Загружаем историю, если есть
+        nameInput.value = savedName;
         if (savedHistory) {
           try {
             chatHistory = JSON.parse(savedHistory);
-          } catch (e) {
-            console.warn('Ошибка парсинга истории', e);
-          }
+          } catch (e) {}
         }
-        // Пытаемся подключиться к серверу с сохранённым именем
-        socket.emit('join', savedName);
-        // Аудиоконтекст инициализируем позже, после жеста
+        // Попытка подключиться
+        socket.emit('join', { name: savedName, userId: savedId });
+        // Показываем интерфейс чата (он будет скрыт, если ошибка)
+        loginDiv.style.display = 'none';
+        chatDiv.style.display = 'flex';
       }
     }
 
@@ -448,21 +477,33 @@
       }
     }
 
-    // ---- Очистка storage при ошибке входа ----
-    function clearStorage() {
+    // ---- Очистка storage и возврат к логину ----
+    function logout() {
       localStorage.removeItem('userName');
       localStorage.removeItem('userId');
       localStorage.removeItem('chatHistory');
       currentUser = null;
+      selectedUser = null;
       chatHistory = {};
+      // Отключаем сокет и показываем экран входа
+      socket.disconnect();
+      socket.connect(); // переподключаемся для нового входа
+      loginDiv.style.display = 'block';
+      chatDiv.style.display = 'none';
+      errorDiv.textContent = '';
     }
 
-    // ---- Вход (обработчик кнопки) ----
+    // ---- Смена ника ----
+    changeNickBtn.addEventListener('click', () => {
+      logout();
+    });
+
+    // ---- Вход (кнопка) ----
     joinBtn.addEventListener('click', () => {
       const name = nameInput.value.trim();
       if (!name) return;
-      socket.emit('join', name);
-      // Аудиоконтекст инициализируем после жеста
+      // Отправляем join без userId (новый пользователь)
+      socket.emit('join', { name });
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
@@ -472,34 +513,35 @@
       if (e.key === 'Enter') joinBtn.click();
     });
 
-    // ---- Ошибка входа (имя занято) ----
+    // ---- Ошибка входа (например, имя занято, но у нас теперь имя может дублироваться) ----
     socket.on('joinError', (msg) => {
       errorDiv.textContent = msg;
-      // Если была попытка автоматического входа, очищаем storage и показываем экран логина
+      // Если была попытка автоматического входа, очищаем
       if (currentUser) {
-        clearStorage();
-        loginDiv.style.display = 'block';
-        chatDiv.style.display = 'none';
-        currentUser = null;
-        selectedUser = null;
+        logout();
       }
     });
 
     // ---- Успешный вход ----
     socket.on('joined', (user) => {
       currentUser = user;
-      // Если раньше не было audioContext (например, при автоматическом входе), создаём
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
-      // Сохраняем в localStorage
       saveToStorage();
       loginDiv.style.display = 'none';
       chatDiv.style.display = 'flex';
     });
 
+    // ---- Вытеснение (другое подключение с тем же ID) ----
+    socket.on('kicked', (msg) => {
+      alert(msg); // или показать уведомление
+      logout();
+    });
+
     // ---- Обновление списка пользователей ----
     socket.on('user list', (onlineUsers) => {
+      // Фильтруем текущего пользователя
       users = onlineUsers.filter(u => u.id !== currentUser?.id);
       renderUserList();
 
@@ -549,7 +591,7 @@
 
       renderUserList();
       loadChatHistory(user.id);
-      saveToStorage(); // сохраняем статус прочтения
+      saveToStorage();
 
       if (window.innerWidth <= 768) {
         chatMain.classList.add('active');
@@ -607,17 +649,15 @@
       if (!chatHistory[peerId]) chatHistory[peerId] = [];
       const message = { fromName, text, isOwn, read: isOwn, time };
       chatHistory[peerId].push(message);
-      saveToStorage(); // сохраняем историю
+      saveToStorage();
 
-      // Определяем, активен ли чат с этим пользователем
       const isActiveChat = selectedUser && selectedUser.id === peerId;
 
-      // Воспроизводим звук в зависимости от ситуации
       if (!isOwn) {
         if (isActiveChat) {
-          playActiveChatSound();   // сообщение в открытом чате
+          playActiveChatSound();
         } else {
-          playNotificationSound(); // фоновое уведомление
+          playNotificationSound();
         }
       }
 
@@ -653,13 +693,13 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    // ---- Звуковые сигналы ----
+    // ---- Звуки ----
     function playNotificationSound() {
-      playBeep(800, 0.2, 0.1); // частота, громкость, длительность
+      playBeep(800, 0.2, 0.1);
     }
 
     function playActiveChatSound() {
-      playBeep(600, 0.1, 0.05); // тише и короче
+      playBeep(600, 0.1, 0.05);
     }
 
     function playBeep(freq, gainValue, duration) {

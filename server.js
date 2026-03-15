@@ -9,44 +9,61 @@ const io = socketIo(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-const users = new Map(); // socket.id -> { id, name }
+// Хранилище пользователей: userId -> { id: userId, name, socketId }
+const users = new Map();
+
+function generateId() {
+  return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+}
 
 io.on('connection', (socket) => {
   console.log('Новое подключение:', socket.id);
 
-  socket.on('join', (name) => {
-    let nameTaken = false;
-    for (let [_, user] of users) {
-      if (user.name === name) {
-        nameTaken = true;
-        break;
+  socket.on('join', ({ name, userId }) => {
+    // Если передан userId и такой пользователь существует, обновляем его
+    if (userId && users.has(userId)) {
+      const user = users.get(userId);
+      if (user.socketId && user.socketId !== socket.id) {
+        const oldSocket = io.sockets.sockets.get(user.socketId);
+        if (oldSocket) {
+          oldSocket.emit('kicked', 'Вы вошли с другого устройства или перезагрузили страницу');
+          oldSocket.disconnect(true);
+        }
       }
-    }
-    if (nameTaken) {
-      socket.emit('joinError', 'Это имя уже используется');
+      user.name = name;
+      user.socketId = socket.id;
+      users.set(userId, user);
+      socket.emit('joined', { id: userId, name: user.name });
+      broadcastUserList();
       return;
     }
-    users.set(socket.id, { id: socket.id, name });
-    socket.emit('joined', { id: socket.id, name });
+
+    // Создаём нового пользователя
+    const newUserId = generateId();
+    const newUser = { id: newUserId, name, socketId: socket.id };
+    users.set(newUserId, newUser);
+    socket.emit('joined', { id: newUserId, name });
     broadcastUserList();
   });
 
   socket.on('private message', ({ to, text }) => {
-    const fromUser = users.get(socket.id);
+    const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
 
-    const toSocket = io.sockets.sockets.get(to);
-    if (toSocket) {
-      toSocket.emit('private message', {
-        from: socket.id,
-        fromName: fromUser.name,
-        to: to,
-        text,
-      });
+    const recipient = users.get(to);
+    if (recipient && recipient.socketId) {
+      const toSocket = io.sockets.sockets.get(recipient.socketId);
+      if (toSocket) {
+        toSocket.emit('private message', {
+          from: fromUser.id,
+          fromName: fromUser.name,
+          to: recipient.id,
+          text,
+        });
+      }
     }
-    // Отправляем подтверждение отправителю (тоже с полем to)
     socket.emit('private message', {
-      from: socket.id,
+      from: fromUser.id,
       fromName: fromUser.name,
       to: to,
       text,
@@ -54,7 +71,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    users.delete(socket.id);
+    for (let [userId, user] of users.entries()) {
+      if (user.socketId === socket.id) {
+        users.delete(userId);
+        break;
+      }
+    }
     broadcastUserList();
   });
 });
