@@ -9,11 +9,13 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Настройка multer
+// Настройка multer для загрузки изображений
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     cb(null, dir);
   },
   filename: (req, file, cb) => {
@@ -27,8 +29,11 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Эндпоинт для загрузки изображений
 app.post('/upload', upload.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Файл не отправлен' });
+  if (!req.file) {
+    return res.status(400).json({ error: 'Файл не отправлен' });
+  }
   res.json({ url: `/uploads/${req.file.filename}` });
 });
 
@@ -38,6 +43,7 @@ const users = new Map();
 io.on('connection', (socket) => {
   console.log('Новое подключение:', socket.id);
 
+  // Обработка входа / восстановления сессии
   socket.on('join', ({ name, userId }) => {
     if (!userId) userId = generateId();
 
@@ -61,6 +67,7 @@ io.on('connection', (socket) => {
     broadcastUserList();
   });
 
+  // Личное сообщение
   socket.on('private message', ({ to, text, imageUrl }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
@@ -78,6 +85,7 @@ io.on('connection', (socket) => {
         });
       }
     }
+    // Подтверждение отправителю
     socket.emit('private message', {
       from: fromUser.id,
       fromName: fromUser.name,
@@ -87,6 +95,7 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Индикатор "печатает"
   socket.on('typing', ({ to }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
@@ -111,6 +120,49 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Очистка чата
+  socket.on('clear chat', ({ peerId }) => {
+    const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
+    if (!fromUser) return;
+    const recipient = users.get(peerId);
+    if (recipient && recipient.socketId) {
+      const toSocket = io.sockets.sockets.get(recipient.socketId);
+      if (toSocket) {
+        toSocket.emit('chat cleared', { peerId: fromUser.id });
+      }
+    }
+    socket.emit('chat cleared', { peerId });
+  });
+
+  // Удаление сообщения
+  socket.on('delete message', ({ messageId, peerId }) => {
+    const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
+    if (!fromUser) return;
+    const recipient = users.get(peerId);
+    if (recipient && recipient.socketId) {
+      const toSocket = io.sockets.sockets.get(recipient.socketId);
+      if (toSocket) {
+        toSocket.emit('message deleted', { messageId, peerId: fromUser.id });
+      }
+    }
+    socket.emit('message deleted', { messageId, peerId });
+  });
+
+  // Редактирование сообщения
+  socket.on('edit message', ({ messageId, peerId, newText }) => {
+    const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
+    if (!fromUser) return;
+    const recipient = users.get(peerId);
+    if (recipient && recipient.socketId) {
+      const toSocket = io.sockets.sockets.get(recipient.socketId);
+      if (toSocket) {
+        toSocket.emit('message edited', { messageId, peerId: fromUser.id, newText });
+      }
+    }
+    socket.emit('message edited', { messageId, peerId, newText });
+  });
+
+  // Отключение
   socket.on('disconnect', () => {
     for (let [userId, user] of users.entries()) {
       if (user.socketId === socket.id) {

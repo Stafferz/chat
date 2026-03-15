@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
   <title>Оранжевый чат</title>
   <style>
-    /* Чёрно-оранжевая тема */
     * {
       margin: 0;
       padding: 0;
@@ -128,7 +127,7 @@
       background: rgba(0,0,0,0.1);
     }
 
-    #user-list {
+    #chat-list {
       flex: 1;
       overflow-y: auto;
       list-style: none;
@@ -136,57 +135,64 @@
       margin: 0;
     }
 
-    #user-list li {
-      padding: 0.8rem 1rem;
+    #chat-list li {
+      padding: 1rem;
       border-bottom: 1px solid #333;
       cursor: pointer;
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 8px;
-      font-size: 1rem;
+      font-size: 1.1rem;
       color: #fff;
       transition: background 0.2s;
     }
 
-    #user-list li:active {
+    #chat-list li:active {
       background: #2a2a2a;
     }
 
-    #user-list li.selected {
-      background: #b85e00; /* более тёмный оранжевый для выделения */
+    #chat-list li.selected {
+      background: #b85e00;
       color: #121212;
       box-shadow: inset 0 0 0 1px rgba(255,140,0,0.5);
     }
 
     .status-indicator {
+      display: inline-block;
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      display: inline-block;
-      margin-right: 6px;
+      margin-right: 8px;
     }
-
     .status-online {
-      background: #4caf50; /* зелёный */
+      background: #4caf50;
       box-shadow: 0 0 5px #4caf50;
     }
-
     .status-offline {
-      background: #888; /* серый */
+      background: #888;
+    }
+
+    .chat-item {
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+
+    .chat-name {
+      flex: 1;
     }
 
     .notification-badge {
       background: #ff8c00;
       color: #121212;
       border-radius: 50%;
-      min-width: 22px;
-      height: 22px;
+      min-width: 24px;
+      height: 24px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.8rem;
+      font-size: 0.9rem;
       font-weight: bold;
-      margin-left: auto;
       padding: 0 4px;
     }
 
@@ -225,18 +231,8 @@
       opacity: 0.6;
     }
 
-    #chat-title {
-      flex: 1;
-    }
-
-    #typing-indicator {
-      font-size: 0.9rem;
-      color: #aaa;
-      margin-left: 10px;
-      font-style: italic;
-    }
-
     #clear-chat-btn {
+      margin-left: auto;
       background: transparent;
       border: 1px solid #ff8c00;
       color: #ff8c00;
@@ -248,6 +244,13 @@
 
     #clear-chat-btn:active {
       background: rgba(255,140,0,0.2);
+    }
+
+    #typing-indicator {
+      font-size: 0.9rem;
+      color: #ff8c00;
+      margin-left: 10px;
+      font-style: italic;
     }
 
     #messages {
@@ -368,11 +371,6 @@
       border-color: #ff8c00;
     }
 
-    #message-input:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
     #send-btn {
       padding: 0.75rem 1.5rem;
       background: #ff8c00;
@@ -407,10 +405,6 @@
       cursor: pointer;
       font-weight: bold;
       font-size: 0.9rem;
-    }
-
-    .image-upload-label:active {
-      background: #e07b00;
     }
 
     /* Модальное окно редактирования */
@@ -511,15 +505,15 @@
         display: inline-block;
       }
 
-      #user-list li {
-        padding: 1rem;
-        font-size: 1.1rem;
+      #chat-list li {
+        padding: 1.2rem 1rem;
+        font-size: 1.2rem;
       }
 
       .notification-badge {
-        min-width: 26px;
-        height: 26px;
-        font-size: 0.9rem;
+        min-width: 28px;
+        height: 28px;
+        font-size: 1rem;
       }
 
       #send-btn {
@@ -560,7 +554,7 @@
           <span>Чаты</span>
           <button id="change-nick-btn">Сменить ник</button>
         </div>
-        <ul id="user-list"></ul>
+        <ul id="chat-list"></ul>
       </div>
       <div class="main" id="chat-main">
         <div id="chat-header">
@@ -612,7 +606,7 @@
     const nameInput = document.getElementById('name-input');
     const joinBtn = document.getElementById('join-btn');
     const errorDiv = document.getElementById('error');
-    const userListEl = document.getElementById('user-list');
+    const chatListEl = document.getElementById('chat-list');
     const chatMain = document.getElementById('chat-main');
     const chatTitle = document.getElementById('chat-title');
     const typingIndicator = document.getElementById('typing-indicator');
@@ -633,15 +627,14 @@
 
     // Состояние
     let currentUser = null;
-    let selectedUser = null;
-    let onlineUsers = []; // только онлайн (id)
-    let allChats = []; // все собеседники (id + name + online)
-    let chatHistory = {}; // peerId -> массив сообщений
+    let selectedUser = null; // { id, name, online? }
+    let onlineUsers = [];    // массив онлайн пользователей (с сервера)
+    let chatHistory = {};    // peerId -> массив сообщений { id, fromName, text, isOwn, read, time, imageUrl }
     let audioContext = null;
     let currentEditMessageId = null;
 
-    // Таймер для индикатора печатает
-    let typingTimeout = null;
+    // Таймер для "печатает"
+    let typingTimer = null;
 
     // ---- Загрузка из localStorage ----
     function loadFromStorage() {
@@ -735,65 +728,66 @@
       }
     });
 
-    // ---- Обновление списка онлайн-пользователей ----
-    socket.on('user list', (onlineList) => {
-      onlineUsers = onlineList.map(u => u.id);
-      // Обновляем список всех чатов: объединяем онлайн и тех, кто есть в истории
-      const allPeerIds = new Set([...onlineUsers, ...Object.keys(chatHistory)]);
-      allChats = Array.from(allPeerIds).map(id => {
-        const online = onlineList.find(u => u.id === id);
-        return {
-          id,
-          name: online ? online.name : (chatHistory[id]?.[0]?.fromName || 'Неизвестный'),
-          online: !!online
-        };
-      }).sort((a, b) => {
-        // Сначала онлайн, потом офлайн
-        if (a.online && !b.online) return -1;
-        if (!a.online && b.online) return 1;
-        return a.name.localeCompare(b.name);
+    // ---- Обновление списка онлайн пользователей ----
+    socket.on('user list', (online) => {
+      onlineUsers = online;
+
+      // Обновляем имена в истории для тех, кто онлайн (они могли сменить ник)
+      online.forEach(u => {
+        if (chatHistory[u.id]) {
+          chatHistory[u.id].forEach(msg => {
+            if (!msg.isOwn) {
+              msg.fromName = u.name;
+            }
+          });
+        }
       });
 
-      renderUserList();
-
-      // Если выбранный пользователь исчез из онлайна, обновляем его статус и блокируем ввод
-      if (selectedUser) {
-        const updated = allChats.find(c => c.id === selectedUser.id);
-        if (updated) {
-          selectedUser.online = updated.online;
-          if (!updated.online) {
-            messageInput.disabled = true;
-            sendBtn.disabled = true;
-            chatTitle.textContent = `Чат с ${updated.name} (офлайн)`;
-          } else {
-            messageInput.disabled = false;
-            sendBtn.disabled = false;
-            chatTitle.textContent = `Чат с ${updated.name}`;
-          }
-        } else {
-          // Собеседник полностью удалён (очистили историю?)
-          closeChat();
-        }
-      }
+      // Строим полный список чатов (онлайн + офлайн из истории)
+      buildChatList();
     });
 
-    function renderUserList() {
-      userListEl.innerHTML = '';
-      allChats.forEach(chat => {
+    function buildChatList() {
+      const allChats = [];
+
+      // Добавляем всех онлайн, кроме себя
+      onlineUsers.filter(u => u.id !== currentUser?.id).forEach(u => {
+        allChats.push({ id: u.id, name: u.name, online: true });
+      });
+
+      // Добавляем офлайн-пользователей из истории, которых нет в онлайн
+      Object.keys(chatHistory).forEach(peerId => {
+        if (peerId !== currentUser?.id && !onlineUsers.some(u => u.id === peerId)) {
+          const lastMsg = chatHistory[peerId][chatHistory[peerId].length - 1];
+          allChats.push({ id: peerId, name: lastMsg.fromName, online: false });
+        }
+      });
+
+      // Убираем дубликаты (на случай, если кто-то онлайн и уже есть в списке)
+      const unique = Array.from(new Map(allChats.map(item => [item.id, item])).values());
+
+      renderChatList(unique);
+    }
+
+    function renderChatList(chats) {
+      chatListEl.innerHTML = '';
+      chats.forEach(chat => {
         const li = document.createElement('li');
         li.dataset.id = chat.id;
 
-        // Индикатор статуса
         const statusSpan = document.createElement('span');
         statusSpan.className = `status-indicator ${chat.online ? 'status-online' : 'status-offline'}`;
-        li.appendChild(statusSpan);
 
-        // Имя
         const nameSpan = document.createElement('span');
+        nameSpan.className = 'chat-name';
         nameSpan.textContent = chat.name;
-        li.appendChild(nameSpan);
 
-        // Бейдж непрочитанных
+        const chatItem = document.createElement('div');
+        chatItem.className = 'chat-item';
+        chatItem.appendChild(statusSpan);
+        chatItem.appendChild(nameSpan);
+        li.appendChild(chatItem);
+
         const history = chatHistory[chat.id] || [];
         const unreadCount = history.filter(msg => !msg.isOwn && !msg.read).length;
         if (unreadCount > 0) {
@@ -808,17 +802,23 @@
         }
 
         li.addEventListener('click', () => selectUser(chat));
-        userListEl.appendChild(li);
+        chatListEl.appendChild(li);
       });
     }
 
     // ---- Выбор собеседника ----
     function selectUser(chat) {
-      selectedUser = { id: chat.id, name: chat.name, online: chat.online };
-      chatTitle.textContent = chat.online ? `Чат с ${chat.name}` : `Чат с ${chat.name} (офлайн)`;
+      selectedUser = chat;
+      chatTitle.textContent = `Чат с ${chat.name}`;
       typingIndicator.textContent = '';
-      messageInput.disabled = !chat.online;
-      sendBtn.disabled = !chat.online;
+
+      const isOnline = chat.online;
+      messageInput.disabled = !isOnline;
+      sendBtn.disabled = !isOnline;
+      if (!isOnline) {
+        chatTitle.textContent += ' (офлайн)';
+      }
+
       clearChatBtn.style.display = 'inline-block';
       messageInput.focus();
 
@@ -826,7 +826,7 @@
         chatHistory[chat.id].forEach(msg => { msg.read = true; });
       }
 
-      renderUserList();
+      buildChatList(); // обновить бейджи
       loadChatHistory(chat.id);
       saveToStorage();
 
@@ -851,8 +851,8 @@
       sendBtn.disabled = true;
       clearChatBtn.style.display = 'none';
       messagesDiv.innerHTML = '';
-      renderUserList();
-      userListEl.scrollTop = 0;
+      buildChatList();
+      chatListEl.scrollTop = 0;
 
       if (window.innerWidth <= 768) {
         chatMain.classList.remove('active');
@@ -918,8 +918,9 @@
     messageInput.addEventListener('input', () => {
       if (!selectedUser || !selectedUser.online) return;
       socket.emit('typing', { to: selectedUser.id });
-      if (typingTimeout) clearTimeout(typingTimeout);
-      typingTimeout = setTimeout(() => {
+
+      if (typingTimer) clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => {
         socket.emit('stop typing', { to: selectedUser.id });
       }, 2000);
     });
@@ -927,6 +928,12 @@
     async function sendMessage() {
       const text = messageInput.value.trim();
       if (!text && !imageUpload.files.length) return;
+
+      // Остановить индикатор печати
+      if (typingTimer) {
+        clearTimeout(typingTimer);
+        socket.emit('stop typing', { to: selectedUser.id });
+      }
 
       if (imageUpload.files.length) {
         const file = imageUpload.files[0];
@@ -940,6 +947,7 @@
             text: text || '',
             imageUrl: data.url,
           });
+          playSelfSendSound();
         } catch (err) {
           console.error('Ошибка загрузки:', err);
         }
@@ -949,6 +957,7 @@
           to: selectedUser.id,
           text,
         });
+        playSelfSendSound();
       }
       messageInput.value = '';
     }
@@ -970,6 +979,7 @@
               text: '',
               imageUrl: data.url,
             });
+            playSelfSendSound();
           } catch (err) {
             console.error('Ошибка загрузки из буфера:', err);
           }
@@ -995,7 +1005,6 @@
       if (!isOwn) {
         if (isActiveChat) {
           playActiveChatSound();
-          message.read = true; // прочитано, так как чат открыт
         } else {
           playNotificationSound();
         }
@@ -1003,23 +1012,10 @@
 
       if (isActiveChat) {
         displayMessage(message, peerId);
+        if (!isOwn) message.read = true;
       }
 
-      // Обновляем список, чтобы отразить непрочитанные
-      renderUserList();
-    });
-
-    // ---- События "печатает" ----
-    socket.on('typing', ({ from, fromName }) => {
-      if (selectedUser && selectedUser.id === from) {
-        typingIndicator.textContent = `${fromName} печатает...`;
-      }
-    });
-
-    socket.on('stop typing', ({ from }) => {
-      if (selectedUser && selectedUser.id === from) {
-        typingIndicator.textContent = '';
-      }
+      buildChatList(); // обновить бейджи
     });
 
     // ---- Удаление сообщения (от сервера) ----
@@ -1030,7 +1026,7 @@
         if (selectedUser && selectedUser.id === peerId) {
           loadChatHistory(peerId);
         }
-        renderUserList();
+        buildChatList();
       }
     });
 
@@ -1051,12 +1047,25 @@
     // ---- Очистка чата (от сервера) ----
     socket.on('chat cleared', ({ peerId }) => {
       if (chatHistory[peerId]) {
-        delete chatHistory[peerId];
+        chatHistory[peerId] = [];
         saveToStorage();
         if (selectedUser && selectedUser.id === peerId) {
           messagesDiv.innerHTML = '';
         }
-        renderUserList();
+        buildChatList();
+      }
+    });
+
+    // ---- Индикатор печатает ----
+    socket.on('typing', ({ from, fromName }) => {
+      if (selectedUser && selectedUser.id === from) {
+        typingIndicator.textContent = `${fromName} печатает...`;
+      }
+    });
+
+    socket.on('stop typing', ({ from }) => {
+      if (selectedUser && selectedUser.id === from) {
+        typingIndicator.textContent = '';
       }
     });
 
@@ -1091,6 +1100,7 @@
       timeSpan.textContent = msg.time;
       messageDiv.appendChild(timeSpan);
 
+      // Кнопки действий (только для своих сообщений)
       if (msg.isOwn) {
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'message-actions';
@@ -1126,6 +1136,10 @@
     }
 
     function playActiveChatSound() {
+      playBeep(600, 0.1, 0.05);
+    }
+
+    function playSelfSendSound() {
       playBeep(600, 0.1, 0.05);
     }
 
