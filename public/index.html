@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Простой мессенджер без БД</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+    body {
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #f0f0f0;
+    }
+    #login {
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 300px;
+      text-align: center;
+    }
+    #login input {
+      width: 100%;
+      padding: 0.5rem;
+      margin: 1rem 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    #login button {
+      padding: 0.5rem 1rem;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #error {
+      color: red;
+      margin-top: 0.5rem;
+    }
+    #chat {
+      display: none;
+      width: 100%;
+      height: 100%;
+      background: white;
+    }
+    .sidebar {
+      width: 250px;
+      background: #f8f9fa;
+      border-right: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar h3 {
+      padding: 1rem;
+      background: #007bff;
+      color: white;
+      margin: 0;
+    }
+    #user-list {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+      padding: 0;
+    }
+    #user-list li {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+    }
+    #user-list li:hover {
+      background: #e9ecef;
+    }
+    #user-list li.selected {
+      background: #007bff;
+      color: white;
+    }
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    #chat-header {
+      padding: 1rem;
+      background: #f8f9fa;
+      border-bottom: 1px solid #ddd;
+      font-weight: bold;
+    }
+    #messages {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .message {
+      max-width: 60%;
+      margin-bottom: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 1rem;
+      word-wrap: break-word;
+    }
+    .message.own {
+      align-self: flex-end;
+      background: #007bff;
+      color: white;
+    }
+    .message.other {
+      align-self: flex-start;
+      background: #e9ecef;
+    }
+    .message .sender {
+      font-size: 0.8rem;
+      font-weight: bold;
+      margin-bottom: 0.2rem;
+    }
+    .input-area {
+      display: flex;
+      padding: 1rem;
+      border-top: 1px solid #ddd;
+    }
+    #message-input {
+      flex: 1;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-right: 0.5rem;
+    }
+    #send-btn {
+      padding: 0.5rem 1rem;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="login">
+    <h2>Вход в чат</h2>
+    <input type="text" id="name-input" placeholder="Ваше имя" autofocus>
+    <button id="join-btn">Присоединиться</button>
+    <div id="error"></div>
+  </div>
+
+  <div id="chat">
+    <div class="sidebar">
+      <h3>Участники онлайн</h3>
+      <ul id="user-list"></ul>
+    </div>
+    <div class="main">
+      <div id="chat-header">Выберите собеседника</div>
+      <div id="messages"></div>
+      <div class="input-area">
+        <input type="text" id="message-input" placeholder="Сообщение" disabled>
+        <button id="send-btn" disabled>Отправить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    // Элементы
+    const loginDiv = document.getElementById('login');
+    const chatDiv = document.getElementById('chat');
+    const nameInput = document.getElementById('name-input');
+    const joinBtn = document.getElementById('join-btn');
+    const errorDiv = document.getElementById('error');
+    const userListEl = document.getElementById('user-list');
+    const chatHeader = document.getElementById('chat-header');
+    const messagesDiv = document.getElementById('messages');
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    let currentUser = null; // { id, name }
+    let selectedUser = null; // { id, name }
+    let users = []; // все онлайн
+
+    // Обработка входа
+    joinBtn.addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      if (!name) return;
+      socket.emit('join', name);
+    });
+
+    nameInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') joinBtn.click();
+    });
+
+    // Ошибка при входе
+    socket.on('joinError', (msg) => {
+      errorDiv.textContent = msg;
+    });
+
+    // Успешный вход
+    socket.on('joined', (user) => {
+      currentUser = user;
+      loginDiv.style.display = 'none';
+      chatDiv.style.display = 'flex';
+    });
+
+    // Получение списка пользователей
+    socket.on('user list', (onlineUsers) => {
+      users = onlineUsers.filter(u => u.id !== currentUser?.id);
+      renderUserList();
+
+      // Если выбранный пользователь вышел, сбрасываем чат
+      if (selectedUser && !users.find(u => u.id === selectedUser.id)) {
+        selectedUser = null;
+        chatHeader.textContent = 'Выберите собеседника';
+        messagesDiv.innerHTML = '';
+        messageInput.disabled = true;
+        sendBtn.disabled = true;
+      }
+    });
+
+    function renderUserList() {
+      userListEl.innerHTML = '';
+      users.forEach(user => {
+        const li = document.createElement('li');
+        li.textContent = user.name;
+        li.dataset.id = user.id;
+        if (selectedUser && selectedUser.id === user.id) {
+          li.classList.add('selected');
+        }
+        li.addEventListener('click', () => selectUser(user));
+        userListEl.appendChild(li);
+      });
+    }
+
+    function selectUser(user) {
+      selectedUser = user;
+      chatHeader.textContent = `Чат с ${user.name}`;
+      messageInput.disabled = false;
+      sendBtn.disabled = false;
+      messageInput.focus();
+
+      // Подсветка в списке
+      document.querySelectorAll('#user-list li').forEach(li => {
+        li.classList.remove('selected');
+        if (li.dataset.id === user.id) li.classList.add('selected');
+      });
+
+      // Очищаем сообщения? Можно оставить историю текущего чата, но для простоты будем показывать только новые
+      // В данном варианте история не хранится, поэтому просто очистим
+      messagesDiv.innerHTML = '';
+    }
+
+    // Отправка сообщения
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text || !selectedUser) return;
+
+      socket.emit('private message', {
+        to: selectedUser.id,
+        text,
+      });
+
+      messageInput.value = '';
+    }
+
+    // Получение сообщения
+    socket.on('private message', ({ from, fromName, text }) => {
+      // Определяем, своё или чужое
+      const isOwn = from === currentUser.id;
+
+      // Если сообщение от текущего собеседника или своё (для текущего собеседника), показываем
+      if (selectedUser && (from === selectedUser.id || isOwn)) {
+        addMessageToChat(fromName, text, isOwn);
+      } else {
+        // Можно добавить уведомление о новом сообщении не из текущего чата
+        // Для простоты просто проигнорируем
+      }
+    });
+
+    function addMessageToChat(senderName, text, isOwn) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
+      if (!isOwn) {
+        const nameSpan = document.createElement('div');
+        nameSpan.className = 'sender';
+        nameSpan.textContent = senderName;
+        messageDiv.appendChild(nameSpan);
+      }
+      const textSpan = document.createElement('div');
+      textSpan.textContent = text;
+      messageDiv.appendChild(textSpan);
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+  </script>
+</body>
+</html>
