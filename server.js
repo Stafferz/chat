@@ -29,7 +29,6 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Эндпоинт для загрузки изображений
 app.post('/upload', upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Файл не отправлен' });
@@ -43,7 +42,6 @@ const users = new Map();
 io.on('connection', (socket) => {
   console.log('Новое подключение:', socket.id);
 
-  // Обработка входа / восстановления сессии
   socket.on('join', ({ name, userId }) => {
     if (!userId) userId = generateId();
 
@@ -67,7 +65,6 @@ io.on('connection', (socket) => {
     broadcastUserList();
   });
 
-  // Личное сообщение
   socket.on('private message', ({ to, text, imageUrl }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
@@ -85,7 +82,6 @@ io.on('connection', (socket) => {
         });
       }
     }
-    // Подтверждение отправителю
     socket.emit('private message', {
       from: fromUser.id,
       fromName: fromUser.name,
@@ -95,7 +91,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Индикатор "печатает"
   socket.on('typing', ({ to }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
@@ -120,7 +115,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Очистка чата
   socket.on('clear chat', ({ peerId }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
@@ -134,7 +128,6 @@ io.on('connection', (socket) => {
     socket.emit('chat cleared', { peerId });
   });
 
-  // Удаление сообщения
   socket.on('delete message', ({ messageId, peerId }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
@@ -148,7 +141,6 @@ io.on('connection', (socket) => {
     socket.emit('message deleted', { messageId, peerId });
   });
 
-  // Редактирование сообщения
   socket.on('edit message', ({ messageId, peerId, newText }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
@@ -162,7 +154,6 @@ io.on('connection', (socket) => {
     socket.emit('message edited', { messageId, peerId, newText });
   });
 
-  // Отключение
   socket.on('disconnect', () => {
     for (let [userId, user] of users.entries()) {
       if (user.socketId === socket.id) {
