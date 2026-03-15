@@ -640,7 +640,7 @@
           if (!subscription) {
             subscription = await registration.pushManager.subscribe({
               userVisibleOnly: true,
-              applicationServerKey: urlB64ToUint8Array(BM2zKq8Uua84dEUwR9JAdMR6n3tXJNTS9Asfo56U0v_vHjU-YnQNGPvzZa3G55tnNbtYrxRz7fjXAYGA_rwJD4E) // замените на ваш ключ
+              applicationServerKey: urlB64ToUint8Array('BM2zKq8Uua84dEUwR9JAdMR6n3tXJNTS9Asfo56U0v_vHjU-YnQNGPvzZa3G55tnNbtYrxRz7fjXAYGA_rwJD4E') // замените на ваш ключ
             });
             console.log('Новая подписка создана');
           } else {
