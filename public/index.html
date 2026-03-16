@@ -82,7 +82,7 @@
     .file-preview .file-thumb img { width: 100%; height: 100%; object-fit: cover; }
     .file-preview span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .file-preview button { background: none; border: none; color: #ff8c00; font-size: 1rem; cursor: pointer; }
-    #scroll-down-btn { position: absolute; background: #ff8c00; color: #121212; border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 1.8rem; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: none; align-items: center; justify-content: center; z-index: 20; transition: transform 0.2s; }
+    #scroll-down-btn { position: absolute; right: 20px; background: #ff8c00; color: #121212; border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 1.8rem; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: none; align-items: center; justify-content: center; z-index: 20; transition: transform 0.2s; }
     #scroll-down-btn:hover { transform: scale(1.1); }
     @media (max-width: 768px) {
       .sidebar { width: 100%; height: 100%; border-right: none; }
@@ -233,10 +233,12 @@
       if (!selectedUser) return;
       const inputArea = document.querySelector('.input-area');
       if (!inputArea) return;
-      const inputHeight = inputArea.getBoundingClientRect().height;
-      // Отступ снизу: высота поля ввода + небольшой запас (10px)
-      const bottomOffset = inputHeight + 10;
-      scrollDownBtn.style.bottom = bottomOffset + 'px';
+      // Рассчитываем отступ снизу так, чтобы кнопка была прямо над полем ввода
+      const inputRect = inputArea.getBoundingClientRect();
+      const mainRect = document.querySelector('.main').getBoundingClientRect();
+      // bottom = расстояние от нижнего края main до верхнего края inputArea + небольшой запас
+      const bottom = mainRect.bottom - inputRect.top + 10;
+      scrollDownBtn.style.bottom = bottom + 'px';
     }
 
     // Подписка на изменения visualViewport (для мобильных)
@@ -249,6 +251,14 @@
     window.addEventListener('resize', () => {
       adjustMessagesHeight();
       updateScrollButtonPosition();
+    });
+
+    // При фокусе на поле ввода тоже пересчитываем позицию (клавиатура может открыться)
+    messageInput.addEventListener('focus', () => {
+      setTimeout(() => {
+        adjustMessagesHeight();
+        updateScrollButtonPosition();
+      }, 300); // небольшая задержка для завершения анимации клавиатуры
     });
 
     // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
@@ -664,6 +674,10 @@
               replyTo: replyToCopy
             });
             playSelfSendSound();
+            // Принудительная прокрутка вниз после отправки своего сообщения
+            setTimeout(() => {
+              messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }, 100);
           } else {
             alert('Ошибка загрузки');
           }
@@ -692,6 +706,10 @@
         playSelfSendSound();
         messageInput.value = '';
         messageInput.style.height = 'auto';
+        // Принудительная прокрутка вниз после отправки своего сообщения
+        setTimeout(() => {
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }, 100);
         setTimeout(() => messageInput.focus(), 300);
       }
     }
