@@ -19,6 +19,8 @@
     .chat-container { display: flex; width: 100%; height: 100%; position: relative; overflow: hidden; }
     .sidebar { width: 300px; background: #1e1e1e; border-right: 1px solid #333; display: flex; flex-direction: column; transition: transform 0.3s ease; }
     .sidebar-header { padding: 1rem; background: #ff8c00; color: #121212; display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
+    .sidebar-header-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    #current-user-nick { font-size: 0.9rem; background: rgba(0,0,0,0.2); padding: 0.2rem 0.6rem; border-radius: 20px; }
     #change-nick-btn { background: transparent; border: 1px solid #121212; color: #121212; padding: 0.3rem 0.8rem; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
     #change-nick-btn:active { background: rgba(0,0,0,0.1); }
     #chat-list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
@@ -112,7 +114,10 @@
     <div class="chat-container">
       <div class="sidebar">
         <div class="sidebar-header">
-          <span>Чаты</span>
+          <div class="sidebar-header-left">
+            <span>Чаты</span>
+            <span id="current-user-nick"></span>
+          </div>
           <button id="change-nick-btn">Сменить ник</button>
         </div>
         <ul id="chat-list"></ul>
@@ -188,6 +193,7 @@
     const fileThumb = filePreview.querySelector('.file-thumb');
     const fileNameSpan = document.getElementById('file-name');
     const cancelFileBtn = document.getElementById('cancel-file-btn');
+    const currentUserNickSpan = document.getElementById('current-user-nick');
 
     // Состояние
     let currentUser = null;
@@ -227,7 +233,7 @@
       };
       replyTextSpan.textContent = `Ответ ${msg.isOwn ? 'себе' : replyToMessage.fromName}: ${replyToMessage.text.substring(0, 30)}${replyToMessage.text.length > 30 ? '…' : ''}`;
       replyPreview.style.display = 'flex';
-      // Увеличенный таймаут, чтобы клавиатура успела открыться и поле ввода не перекрывалось
+      // Увеличенный таймаут для надёжного открытия клавиатуры
       setTimeout(() => messageInput.focus(), 500);
     }
 
@@ -253,6 +259,15 @@
       return new Date(timestamp).toLocaleDateString();
     }
 
+    // Обновление ника в боковой панели
+    function updateCurrentUserNick() {
+      if (currentUser) {
+        currentUserNickSpan.textContent = currentUser.name;
+      } else {
+        currentUserNickSpan.textContent = '';
+      }
+    }
+
     // ========== ЗАГРУЗКА И СОХРАНЕНИЕ ==========
     function loadFromStorage() {
       const savedName = localStorage.getItem('userName');
@@ -260,6 +275,7 @@
       if (savedName && savedId) {
         currentUser = { id: savedId, name: savedName };
         nameInput.value = savedName;
+        updateCurrentUserNick();
         const savedHistory = localStorage.getItem('chatHistory');
         if (savedHistory) {
           try {
@@ -305,6 +321,7 @@
     socket.on('joined', (user) => {
       currentUser = user;
       localStorage.setItem('userName', user.name); localStorage.setItem('userId', user.id);
+      updateCurrentUserNick();
       if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
       loginDiv.style.display = 'none'; chatDiv.style.display = 'flex';
       subscribeToPush();
