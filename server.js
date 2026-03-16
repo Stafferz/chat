@@ -19,7 +19,8 @@ webPush.setVapidDetails(
 );
 console.log('VAPID Public Key from env:', process.env.VAPID_PUBLIC_KEY);
 console.log('VAPID Private Key (first 10 chars):', process.env.VAPID_PRIVATE_KEY ? process.env.VAPID_PRIVATE_KEY.substring(0, 10) : 'undefined');
-// Настройка multer для загрузки файлов (изображения и видео)
+
+// Настройка multer для загрузки файлов (любых типов)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, 'uploads');
@@ -43,11 +44,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Эндпоинт для загрузки файлов
-app.post('/upload', upload.single('image'), (req, res) => {
+app.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Файл не отправлен' });
   }
-  res.json({ url: `/uploads/${req.file.filename}` });
+  // Возвращаем URL и тип файла
+  res.json({
+    url: `/uploads/${req.file.filename}`,
+    mimetype: req.file.mimetype,
+    originalname: req.file.originalname
+  });
 });
 
 // Эндпоинт для сохранения push-подписки
@@ -65,6 +71,7 @@ app.post('/api/subscribe', (req, res) => {
 const users = new Map();               // userId -> { id, name, socketId }
 const offlineMessages = new Map();      // userId -> [сообщения]
 const pushSubscriptions = new Map();    // userId -> subscription
+const lastSeen = new Map();              // userId -> timestamp
 
 io.on('connection', (socket) => {
   console.log('Новое подключение:', socket.id);
@@ -100,17 +107,22 @@ io.on('connection', (socket) => {
     broadcastUserList();
   });
 
-  socket.on('private message', ({ to, text, imageUrl }) => {
+  // Обычное сообщение (поддерживает replyTo)
+  socket.on('private message', ({ to, text, imageUrl, replyTo, fileInfo }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
 
     const message = {
+      id: generateId(), // уникальный ID сообщения
       from: fromUser.id,
       fromName: fromUser.name,
       to: to,
       text,
       imageUrl,
-      timestamp: Date.now()
+      fileInfo, // добавлено: информация о файле (имя, тип, URL)
+      replyTo,   // ID сообщения, на которое отвечаем
+      timestamp: Date.now(),
+      edited: false
     };
 
     const recipient = users.get(to);
@@ -128,7 +140,7 @@ io.on('connection', (socket) => {
       if (subscription) {
         const payload = JSON.stringify({
           title: `Новое сообщение от ${fromUser.name}`,
-          body: text || (imageUrl ? (imageUrl.match(/\.(mp4|webm|ogg|mov)$/i) ? '🎥 Видео' : '📷 Изображение') : ''),
+          body: text || (fileInfo ? `📎 ${fileInfo.originalname}` : (imageUrl ? (imageUrl.match(/\.(mp4|webm|ogg|mov)$/i) ? '🎥 Видео' : '📷 Изображение') : '')),
           url: '/',
           senderId: fromUser.id
         });
@@ -145,6 +157,38 @@ io.on('connection', (socket) => {
 
     // Отправляем подтверждение отправителю
     socket.emit('private message', message);
+  });
+
+  // Редактирование сообщения
+  socket.on('edit message', ({ messageId, newText, peerId }) => {
+    const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
+    if (!fromUser) return;
+
+    // Пересылаем событие получателю, если он онлайн
+    const recipient = users.get(peerId);
+    if (recipient && recipient.socketId) {
+      const toSocket = io.sockets.sockets.get(recipient.socketId);
+      if (toSocket) {
+        toSocket.emit('message edited', { messageId, newText, from: fromUser.id });
+      }
+    }
+    // Также отправляем обратно отправителю для обновления UI
+    socket.emit('message edited', { messageId, newText, from: fromUser.id });
+  });
+
+  // Удаление сообщения
+  socket.on('delete message', ({ messageId, peerId }) => {
+    const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
+    if (!fromUser) return;
+
+    const recipient = users.get(peerId);
+    if (recipient && recipient.socketId) {
+      const toSocket = io.sockets.sockets.get(recipient.socketId);
+      if (toSocket) {
+        toSocket.emit('message deleted', { messageId, from: fromUser.id });
+      }
+    }
+    socket.emit('message deleted', { messageId, from: fromUser.id });
   });
 
   socket.on('typing', ({ to }) => {
@@ -179,11 +223,16 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    let disconnectedUserId = null;
     for (let [userId, user] of users.entries()) {
       if (user.socketId === socket.id) {
+        disconnectedUserId = userId;
         users.delete(userId);
         break;
       }
+    }
+    if (disconnectedUserId) {
+      lastSeen.set(disconnectedUserId, Date.now());
     }
     broadcastUserList();
   });
@@ -191,7 +240,11 @@ io.on('connection', (socket) => {
 
 function broadcastUserList() {
   const userList = Array.from(users.values()).map(({ id, name }) => ({ id, name }));
+  // Добавляем lastSeen в список? Можно отдельным событием, но для простоты передадим отдельно
   io.emit('user list', userList);
+  // Также отправляем lastSeen всем
+  const lastSeenObj = Object.fromEntries(lastSeen);
+  io.emit('last seen update', lastSeenObj);
 }
 
 function generateId() {
