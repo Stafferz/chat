@@ -1280,6 +1280,7 @@
     cancelReplyBtn.addEventListener('click', () => {
       replyToMessage = null;
       replyPreview.style.display = 'none';
+      replyTextSpan.textContent = '';
     });
 
     fileUpload.addEventListener('change', () => {
@@ -1311,7 +1312,7 @@
 
     function cancelFile() {
       selectedFile = null;
-      fileUpload.value = '';
+      fileUpload.value = ''; // очищаем input
       filePreview.style.display = 'none';
       fileThumb.innerHTML = '';
     }
@@ -1474,8 +1475,7 @@
 
       if (msg.text) {
         const textSpan = document.createElement('div');
-        // Используем innerHTML для поддержки переносов, заменяя \n на <br> (но проще через CSS)
-        textSpan.textContent = msg.text; // но лучше использовать textContent + white-space: pre-wrap
+        textSpan.textContent = msg.text; // переносы сохраняются благодаря white-space: pre-wrap
         messageDiv.appendChild(textSpan);
       }
 

@@ -11,22 +11,16 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Настройка VAPID для push-уведомлений
 webPush.setVapidDetails(
   process.env.VAPID_EMAIL || 'mailto:example@yourdomain.com',
   process.env.VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
-console.log('VAPID Public Key from env:', process.env.VAPID_PUBLIC_KEY);
-console.log('VAPID Private Key (first 10 chars):', process.env.VAPID_PRIVATE_KEY ? process.env.VAPID_PRIVATE_KEY.substring(0, 10) : 'undefined');
 
-// Настройка multer для загрузки файлов (любых типов)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: (req, file, cb) => {
@@ -34,20 +28,14 @@ const storage = multer.diskStorage({
     cb(null, uniqueName);
   }
 });
-const upload = multer({
-  storage,
-  limits: { fileSize: 50 * 1024 * 1024 } // 50 МБ
-});
+const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Эндпоинт для загрузки файлов
 app.post('/upload', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'Файл не отправлен' });
-  }
+  if (!req.file) return res.status(400).json({ error: 'Файл не отправлен' });
   res.json({
     url: `/uploads/${req.file.filename}`,
     mimetype: req.file.mimetype,
@@ -55,29 +43,21 @@ app.post('/upload', upload.single('file'), (req, res) => {
   });
 });
 
-// Эндпоинт для сохранения push-подписки
 app.post('/api/subscribe', (req, res) => {
   const { userId, subscription } = req.body;
-  if (!userId || !subscription) {
-    return res.status(400).json({ error: 'Missing data' });
-  }
+  if (!userId || !subscription) return res.status(400).json({ error: 'Missing data' });
   pushSubscriptions.set(userId, subscription);
-  console.log(`Push subscription saved for user ${userId}`);
   res.json({ ok: true });
 });
 
-// Хранилища
-const users = new Map();               // userId -> { id, name, socketId }
-const offlineMessages = new Map();      // userId -> [сообщения]
-const pushSubscriptions = new Map();    // userId -> subscription
-const lastSeen = new Map();              // userId -> timestamp
+const users = new Map();
+const offlineMessages = new Map();
+const pushSubscriptions = new Map();
+const lastSeen = new Map();
 
 io.on('connection', (socket) => {
-  console.log('Новое подключение:', socket.id);
-
   socket.on('join', ({ name, userId }) => {
     if (!userId) userId = generateId();
-
     if (users.has(userId)) {
       const existing = users.get(userId);
       if (existing.socketId && existing.socketId !== socket.id) {
@@ -93,28 +73,22 @@ io.on('connection', (socket) => {
     } else {
       users.set(userId, { id: userId, name, socketId: socket.id });
     }
-
     socket.emit('joined', { id: userId, name });
-
     if (offlineMessages.has(userId)) {
-      const messages = offlineMessages.get(userId);
-      messages.forEach(msg => socket.emit('private message', msg));
+      offlineMessages.get(userId).forEach(msg => socket.emit('private message', msg));
       offlineMessages.delete(userId);
     }
-
     broadcastUserList();
   });
 
-  // Обычное сообщение (поддерживает replyTo)
   socket.on('private message', ({ to, text, imageUrl, replyTo, fileInfo }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
-
     const message = {
       id: generateId(),
       from: fromUser.id,
       fromName: fromUser.name,
-      to: to,
+      to,
       text,
       imageUrl,
       fileInfo,
@@ -122,7 +96,6 @@ io.on('connection', (socket) => {
       timestamp: Date.now(),
       edited: false
     };
-
     const recipient = users.get(to);
     if (recipient && recipient.socketId) {
       const toSocket = io.sockets.sockets.get(recipient.socketId);
@@ -130,7 +103,6 @@ io.on('connection', (socket) => {
     } else {
       if (!offlineMessages.has(to)) offlineMessages.set(to, []);
       offlineMessages.get(to).push(message);
-
       const subscription = pushSubscriptions.get(to);
       if (subscription) {
         const payload = JSON.stringify({
@@ -139,46 +111,32 @@ io.on('connection', (socket) => {
           url: '/',
           senderId: fromUser.id
         });
-        webPush.sendNotification(subscription, payload)
-          .then(() => console.log(`Push успешно отправлен пользователю ${to}`))
-          .catch(err => {
-            console.error(`Ошибка отправки push пользователю ${to}:`, err);
-            if (err.statusCode === 410 || err.statusCode === 403) {
-              pushSubscriptions.delete(to);
-            }
-          });
+        webPush.sendNotification(subscription, payload).catch(err => {
+          if (err.statusCode === 410 || err.statusCode === 403) pushSubscriptions.delete(to);
+        });
       }
     }
-
     socket.emit('private message', message);
   });
 
-  // Редактирование сообщения
   socket.on('edit message', ({ messageId, newText, peerId }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
-
     const recipient = users.get(peerId);
     if (recipient && recipient.socketId) {
       const toSocket = io.sockets.sockets.get(recipient.socketId);
-      if (toSocket) {
-        toSocket.emit('message edited', { messageId, newText, from: fromUser.id });
-      }
+      if (toSocket) toSocket.emit('message edited', { messageId, newText, from: fromUser.id });
     }
     socket.emit('message edited', { messageId, newText, from: fromUser.id });
   });
 
-  // Удаление сообщения
   socket.on('delete message', ({ messageId, peerId }) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
-
     const recipient = users.get(peerId);
     if (recipient && recipient.socketId) {
       const toSocket = io.sockets.sockets.get(recipient.socketId);
-      if (toSocket) {
-        toSocket.emit('message deleted', { messageId, from: fromUser.id });
-      }
+      if (toSocket) toSocket.emit('message deleted', { messageId, from: fromUser.id });
     }
     socket.emit('message deleted', { messageId, from: fromUser.id });
   });
@@ -223,9 +181,7 @@ io.on('connection', (socket) => {
         break;
       }
     }
-    if (disconnectedUserId) {
-      lastSeen.set(disconnectedUserId, Date.now());
-    }
+    if (disconnectedUserId) lastSeen.set(disconnectedUserId, Date.now());
     broadcastUserList();
   });
 });
@@ -233,8 +189,7 @@ io.on('connection', (socket) => {
 function broadcastUserList() {
   const userList = Array.from(users.values()).map(({ id, name }) => ({ id, name }));
   io.emit('user list', userList);
-  const lastSeenObj = Object.fromEntries(lastSeen);
-  io.emit('last seen update', lastSeenObj);
+  io.emit('last seen update', Object.fromEntries(lastSeen));
 }
 
 function generateId() {
@@ -242,6 +197,4 @@ function generateId() {
 }
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Сервер запущен на порту ${PORT}`);
-});
+server.listen(PORT, '0.0.0.0', () => console.log(`Сервер запущен на порту ${PORT}`));
