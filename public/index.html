@@ -89,11 +89,11 @@
       #back-btn { display: inline-block; }
       #chat-list li { padding: 1rem; font-size: 1.2rem; }
       .notification-badge { min-width: 28px; height: 28px; font-size: 1rem; }
-      #chat-header { flex-wrap: nowrap; padding: 0.5rem; font-size: 1rem; }
+      #chat-header { flex-wrap: nowrap; padding: 0.5rem; font-size: 1rem; flex-shrink: 0; }
       #chat-title { font-size: 1rem; }
       #typing-indicator-header { font-size: 0.8rem; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
       #clear-chat-btn { font-size: 0.7rem; padding: 0.1rem 0.4rem; }
-      .input-area { flex-wrap: wrap; padding: 0.3rem; }
+      .input-area { flex-wrap: wrap; padding: 0.3rem; flex-shrink: 0; }
       #message-input { flex: 1 1 auto; min-width: 120px; font-size: 0.9rem; }
       .file-upload-label, #send-btn { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
       .file-preview, .reply-preview { width: 100%; order: -1; margin-bottom: 4px; }
@@ -204,7 +204,7 @@
     let editingMessageId = null;
     let lastSeenTimer = null;
 
-    // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ОБЪЯВЛЕНЫ ДО ИХ ВЫЗОВА) ==========
+    // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
     function cancelReply() {
       replyToMessage = null;
       replyPreview.style.display = 'none';
@@ -218,6 +218,7 @@
       fileThumb.innerHTML = '';
     }
 
+    // ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОТВЕТА ==========
     function replyToMsg(msg) {
       replyToMessage = {
         id: msg.id,
@@ -226,6 +227,8 @@
       };
       replyTextSpan.textContent = `Ответ ${msg.isOwn ? 'себе' : replyToMessage.fromName}: ${replyToMessage.text.substring(0, 30)}${replyToMessage.text.length > 30 ? '…' : ''}`;
       replyPreview.style.display = 'flex';
+      // Добавляем фокус в поле ввода, чтобы клавиатура не закрывалась на телефоне
+      setTimeout(() => messageInput.focus(), 100);
     }
 
     function startEdit(messageId, currentText) {
@@ -508,7 +511,7 @@
       typingTimer = setTimeout(() => { socket.emit('stop typing', { to: selectedUser.id }); }, 2000);
     });
 
-    // ========== ОТПРАВКА СООБЩЕНИЯ (ИСПРАВЛЕНО) ==========
+    // ========== ОТПРАВКА СООБЩЕНИЯ ==========
     function sendMessage() {
       if (!selectedUser) return;
       const text = messageInput.value.trim();
@@ -526,13 +529,11 @@
 
       // Отправка файла
       if (selectedFile) {
-        // Сохраняем данные ДО очистки
         const fileToSend = selectedFile;
         const replyToCopy = replyToMessage ? { ...replyToMessage } : null;
         const textToSend = text;
         const targetUserId = selectedUser.id;
 
-        // Немедленно убираем превью
         cancelReply();
         cancelFile();
 
@@ -582,7 +583,6 @@
         };
         xhr.send(formData);
       } else {
-        // Текстовое сообщение
         const replyToCopy = replyToMessage ? { ...replyToMessage } : null;
         cancelReply();
 
@@ -598,7 +598,6 @@
       }
     }
 
-    // Привязка отправки
     messageInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
     });
@@ -794,7 +793,6 @@
       else if (selectedUser) chatMain.classList.add('active'); else chatMain.classList.remove('active');
     });
 
-    // Дополнительно: кнопка отмены выбора файла
     cancelFileBtn.addEventListener('click', cancelFile);
     cancelReplyBtn.addEventListener('click', cancelReply);
 
