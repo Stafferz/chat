@@ -36,7 +36,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 } // 50 МБ
+  limits: { fileSize: 100 * 1024 * 1024 } // 50 МБ
 });
 
 app.use(express.json());
@@ -120,7 +120,7 @@ io.on('connection', (socket) => {
       text,
       imageUrl,
       fileInfo, // добавлено: информация о файле (имя, тип, URL)
-      replyTo,   // ID сообщения, на которое отвечаем
+      replyTo,   // объект с id, text, fromName
       timestamp: Date.now(),
       edited: false
     };
@@ -240,7 +240,6 @@ io.on('connection', (socket) => {
 
 function broadcastUserList() {
   const userList = Array.from(users.values()).map(({ id, name }) => ({ id, name }));
-  // Добавляем lastSeen в список? Можно отдельным событием, но для простоты передадим отдельно
   io.emit('user list', userList);
   // Также отправляем lastSeen всем
   const lastSeenObj = Object.fromEntries(lastSeen);

@@ -14,12 +14,12 @@
     }
 
     body {
-      height: 100vh;
+      height: 100dvh;
       display: flex;
       justify-content: center;
       align-items: center;
       background: #121212;
-      overflow-x: hidden;
+      overflow: hidden;
     }
 
     #login {
@@ -81,9 +81,9 @@
     #chat {
       display: none;
       width: 100%;
-      height: 100%;
+      height: 100dvh;
       background: #121212;
-      overflow-x: hidden;
+      overflow: hidden;
     }
 
     .chat-container {
@@ -91,7 +91,7 @@
       width: 100%;
       height: 100%;
       position: relative;
-      overflow-x: hidden;
+      overflow: hidden;
     }
 
     .sidebar {
@@ -241,6 +241,7 @@
       background: #121212;
       position: relative;
       overflow: hidden;
+      height: 100%;
     }
 
     #chat-header {
@@ -255,6 +256,7 @@
       color: #ff8c00;
       flex-wrap: wrap;
       z-index: 5;
+      flex-shrink: 0;
     }
 
     #back-btn {
@@ -285,6 +287,7 @@
       cursor: pointer;
       font-size: 0.8rem;
       margin-left: auto;
+      flex-shrink: 0;
     }
 
     #typing-indicator-header {
@@ -356,6 +359,7 @@
       margin-top: 2px;
       opacity: 0.7;
       text-align: right;
+      display: inline-block;
     }
     .message.own .time {
       color: #121212;
@@ -387,23 +391,21 @@
 
     .message-actions {
       display: flex;
-      gap: 8px;
-      justify-content: flex-end;
+      gap: 4px;
       margin-top: 4px;
-      opacity: 0;
-      transition: opacity 0.2s;
-    }
-    .message:hover .message-actions,
-    .message:active .message-actions {
-      opacity: 1;
+      justify-content: flex-end;
     }
     .message-actions button {
       background: transparent;
       border: none;
       color: inherit;
       cursor: pointer;
-      font-size: 0.9rem;
+      font-size: 0.8rem;
       padding: 2px 5px;
+      border-radius: 12px;
+    }
+    .message-actions button:hover {
+      background: rgba(255,140,0,0.3);
     }
 
     .message img, .message video {
@@ -439,31 +441,33 @@
       gap: 8px;
       align-items: flex-end;
       flex-wrap: wrap;
+      flex-shrink: 0;
     }
 
     .reply-preview {
       width: 100%;
       background: #2a2a2a;
       border-left: 4px solid #ff8c00;
-      padding: 0.4rem 0.8rem;
-      font-size: 0.9rem;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.85rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       color: #fff;
       border-radius: 8px;
+      margin-bottom: 4px;
     }
     .reply-preview button {
       background: none;
       border: none;
       color: #ff8c00;
-      font-size: 1.2rem;
+      font-size: 1rem;
       cursor: pointer;
     }
 
     #message-input {
       flex: 1 1 200px;
-      padding: 0.6rem 1rem;
+      padding: 0.5rem 0.8rem;
       border: 1px solid #444;
       border-radius: 24px;
       font-size: 1rem;
@@ -472,7 +476,7 @@
       background: #2a2a2a;
       color: #fff;
       resize: none;
-      max-height: 120px;
+      max-height: 100px;
       overflow-y: auto;
       line-height: 1.4;
     }
@@ -482,7 +486,7 @@
     }
 
     #send-btn {
-      padding: 0.6rem 1.2rem;
+      padding: 0.5rem 1rem;
       background: #ff8c00;
       color: #121212;
       border: none;
@@ -490,9 +494,10 @@
       font-size: 1rem;
       font-weight: bold;
       cursor: pointer;
-      min-width: 80px;
+      min-width: 70px;
       white-space: nowrap;
       align-self: center;
+      flex-shrink: 0;
     }
 
     #send-btn:active {
@@ -511,7 +516,7 @@
     .file-upload-label {
       background: #ff8c00;
       color: #121212;
-      padding: 0.5rem 1rem;
+      padding: 0.4rem 0.8rem;
       border-radius: 30px;
       cursor: pointer;
       font-weight: bold;
@@ -523,23 +528,25 @@
     .file-preview {
       width: 100%;
       background: #2a2a2a;
-      border-radius: 12px;
-      padding: 0.3rem 0.8rem;
+      border-radius: 8px;
+      padding: 0.2rem 0.6rem;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       color: #fff;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
+      margin-bottom: 4px;
     }
     .file-preview .file-thumb {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 30px;
-      height: 30px;
+      width: 24px;
+      height: 24px;
       background: #444;
       border-radius: 4px;
       overflow: hidden;
+      font-size: 0.8rem;
     }
     .file-preview .file-thumb img {
       width: 100%;
@@ -568,8 +575,8 @@
       color: #121212;
       border: none;
       border-radius: 50%;
-      width: 48px;
-      height: 48px;
+      width: 44px;
+      height: 44px;
       font-size: 1.8rem;
       cursor: pointer;
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
@@ -600,29 +607,21 @@
       .notification-badge { min-width: 28px; height: 28px; font-size: 1rem; }
 
       .input-area {
-        flex-wrap: nowrap;
-        align-items: center;
+        flex-wrap: wrap;
         padding: 0.3rem;
       }
       #message-input {
         flex: 1 1 auto;
-        margin-right: 5px;
-        min-width: 0;
+        min-width: 120px;
       }
-      .file-upload-label {
-        margin-right: 5px;
-        padding: 0.4rem 0.8rem;
-        font-size: 0.9rem;
-      }
-      #send-btn {
-        padding: 0.4rem 0.8rem;
-        min-width: 60px;
-        font-size: 0.9rem;
+      .file-upload-label, #send-btn {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.85rem;
       }
       .file-preview, .reply-preview {
         width: 100%;
         order: -1;
-        margin-bottom: 5px;
+        margin-bottom: 4px;
       }
     }
   </style>
@@ -652,7 +651,7 @@
           <button id="clear-chat-btn" style="display: none;">Очистить</button>
         </div>
         <div id="messages"></div>
-        <button id="scroll-down-btn">⬇️</button>
+        <button id="scroll-down-btn">↓</button>
         <div class="input-area">
           <div id="reply-preview" class="reply-preview" style="display: none;">
             <span id="reply-text"></span>
@@ -809,9 +808,65 @@
       if (data.userId === currentUser?.id) { alert(data.message); location.reload(); }
     });
 
-    // Подписка на push (сокращено для brevity, но в реальном коде должна быть полная функция)
+    // Подписка на push-уведомления
     async function subscribeToPush() {
-      // ... (код как в предыдущей версии)
+      if (pushSubscriptionAttempted) return;
+      pushSubscriptionAttempted = true;
+
+      if (!('Notification' in window)) { console.log('Notification не поддерживается'); return; }
+      if (!('serviceWorker' in navigator)) { console.log('ServiceWorker не поддерживается'); return; }
+      if (!('PushManager' in window)) { console.log('PushManager не поддерживается'); return; }
+
+      if (Notification.permission === 'denied') {
+        console.log('Уведомления заблокированы пользователем');
+        return;
+      }
+
+      if (Notification.permission === 'granted') {
+        try {
+          console.log('Регистрация service worker...');
+          const registration = await navigator.serviceWorker.register('/service-worker.js');
+          console.log('Service worker зарегистрирован', registration);
+
+          await navigator.serviceWorker.ready;
+          console.log('Service worker готов');
+
+          const existingSubscription = await registration.pushManager.getSubscription();
+          if (existingSubscription) {
+            console.log('Удаляем старую подписку');
+            await existingSubscription.unsubscribe();
+          }
+
+          console.log('Подписка на push...');
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlB64ToUint8Array('BK0ZuTTtvnwKTDxfjMrMTeYWoAejPX_J6PIHPMwvx6b5J3V3LuM8MV91d1wbb_kDj7huTVQgryycEgzCTIKdcNk')
+          });
+          console.log('Подписка получена', subscription);
+
+          const res = await fetch('/api/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              subscription: subscription
+            })
+          });
+          if (res.ok) {
+            console.log('Подписка отправлена на сервер');
+          } else {
+            console.error('Ошибка сохранения подписки', await res.text());
+          }
+        } catch (err) {
+          console.error('Ошибка подписки на push:', err);
+        }
+      } else {
+        console.log('Запрашиваем разрешение на уведомления');
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          await subscribeToPush();
+        }
+      }
     }
 
     // Обновление списка онлайн
@@ -1000,6 +1055,23 @@
       }
     });
 
+    // Обработка клавиши Enter: отправка, Ctrl+Enter — новая строка
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    messageInput.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = (this.scrollHeight) + 'px';
+      if (!selectedUser || !selectedUser.online) return;
+      socket.emit('typing', { to: selectedUser.id });
+      if (typingTimer) clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => { socket.emit('stop typing', { to: selectedUser.id }); }, 2000);
+    });
+
     function sendMessage() {
       const text = messageInput.value.trim();
       if (!text && !selectedFile && !isEditing) return;
@@ -1052,21 +1124,23 @@
               } : null
             });
             playSelfSendSound();
-            messageInput.value = '';
-            messageInput.style.height = 'auto';
-            cancelReply();
-            cancelFile();
           } else {
             alert('Ошибка загрузки');
           }
           sendBtn.textContent = originalText;
           sendBtn.disabled = false;
+          messageInput.value = '';
+          messageInput.style.height = 'auto';
+          cancelReply();
+          cancelFile();
           messageInput.focus();
         };
         xhr.onerror = () => {
           alert('Ошибка сети');
           sendBtn.textContent = originalText;
           sendBtn.disabled = false;
+          cancelFile();
+          messageInput.focus();
         };
         xhr.send(formData);
       } else {
@@ -1089,25 +1163,6 @@
 
     sendBtn.addEventListener('click', sendMessage);
 
-    messageInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        if (e.ctrlKey || e.metaKey) {
-          e.preventDefault();
-          sendMessage();
-        }
-        // иначе новая строка — ничего не делаем
-      }
-    });
-
-    messageInput.addEventListener('input', function() {
-      this.style.height = 'auto';
-      this.style.height = (this.scrollHeight) + 'px';
-      if (!selectedUser || !selectedUser.online) return;
-      socket.emit('typing', { to: selectedUser.id });
-      if (typingTimer) clearTimeout(typingTimer);
-      typingTimer = setTimeout(() => { socket.emit('stop typing', { to: selectedUser.id }); }, 2000);
-    });
-
     function startEdit(messageId, currentText) {
       isEditing = true;
       editingMessageId = messageId;
@@ -1123,7 +1178,11 @@
     }
 
     function replyToMsg(msg) {
-      replyToMessage = { id: msg.id, text: msg.text || (msg.fileInfo ? msg.fileInfo.originalname : (msg.imageUrl ? 'Медиа' : '')), fromName: msg.fromName };
+      replyToMessage = {
+        id: msg.id,
+        text: msg.text || (msg.fileInfo ? msg.fileInfo.originalname : (msg.imageUrl ? 'Медиа' : '')),
+        fromName: msg.fromName
+      };
       replyTextSpan.textContent = `Ответ ${msg.isOwn ? 'себе' : replyToMessage.fromName}: ${replyToMessage.text.substring(0, 30)}${replyToMessage.text.length > 30 ? '…' : ''}`;
       replyPreview.style.display = 'flex';
     }
@@ -1274,22 +1333,48 @@
         nameSpan.textContent = msg.fromName;
         messageDiv.appendChild(nameSpan);
       }
+
       if (msg.text) {
         const textSpan = document.createElement('div');
         textSpan.textContent = msg.text;
         messageDiv.appendChild(textSpan);
       }
-      if (msg.imageUrl) {
+
+      if (msg.fileInfo) {
+        const mime = msg.fileInfo.mimetype;
+        if (mime.startsWith('image/')) {
+          const img = document.createElement('img');
+          img.src = msg.fileInfo.url;
+          img.alt = msg.fileInfo.originalname;
+          img.addEventListener('click', () => window.open(msg.fileInfo.url));
+          messageDiv.appendChild(img);
+        } else if (mime.startsWith('video/')) {
+          const video = document.createElement('video');
+          video.src = msg.fileInfo.url;
+          video.controls = true;
+          video.style.maxWidth = '100%';
+          video.style.maxHeight = '200px';
+          video.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.open(msg.fileInfo.url);
+          });
+          messageDiv.appendChild(video);
+        } else {
+          const a = document.createElement('a');
+          a.href = msg.fileInfo.url;
+          a.download = msg.fileInfo.originalname;
+          a.className = 'file-attachment';
+          a.innerHTML = `📎 <span>${msg.fileInfo.originalname}</span>`;
+          messageDiv.appendChild(a);
+        }
+      } else if (msg.imageUrl) {
         if (isVideoUrl(msg.imageUrl)) {
           const video = document.createElement('video');
           video.src = msg.imageUrl;
           video.controls = true;
           video.style.maxWidth = '100%';
           video.style.maxHeight = '200px';
-          video.addEventListener('click', (e) => {
-            e.stopPropagation();
-            window.open(msg.imageUrl);
-          });
+          video.addEventListener('click', () => window.open(msg.imageUrl));
           messageDiv.appendChild(video);
         } else {
           const img = document.createElement('img');
@@ -1297,14 +1382,6 @@
           img.addEventListener('click', () => window.open(msg.imageUrl));
           messageDiv.appendChild(img);
         }
-      }
-      if (msg.fileInfo) {
-        const a = document.createElement('a');
-        a.href = msg.fileInfo.url;
-        a.download = msg.fileInfo.originalname;
-        a.className = 'file-attachment';
-        a.innerHTML = `📎 <span>${msg.fileInfo.originalname}</span>`;
-        messageDiv.appendChild(a);
       }
 
       const timeSpan = document.createElement('div');
@@ -1363,12 +1440,34 @@
       scrollDownBtn.style.display = atBottom ? 'none' : 'flex';
     }
 
+    // Звуки
     function playNotificationSound() { playBeep(800, 0.2, 0.1); }
     function playActiveChatSound() { playBeep(600, 0.1, 0.05); }
     function playSelfSendSound() { playBeep(600, 0.1, 0.05); }
 
     function playBeep(freq, gainValue, duration) {
-      // ... (без изменений)
+      if (!audioContext) return;
+      if (audioContext.state === 'suspended') {
+        document.addEventListener('click', function initAudio() {
+          audioContext.resume().then(() => {
+            beep(audioContext, freq, gainValue, duration);
+            document.removeEventListener('click', initAudio);
+          });
+        }, { once: true });
+      } else if (audioContext.state === 'running') {
+        beep(audioContext, freq, gainValue, duration);
+      }
+    }
+
+    function beep(ctx, freq, gainValue, duration) {
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      oscillator.frequency.value = freq;
+      gainNode.gain.value = gainValue;
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + duration);
     }
 
     window.addEventListener('load', loadFromStorage);
