@@ -41,7 +41,7 @@
     #back-btn:active { opacity: 0.6; }
     #chat-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #clear-chat-btn { background: transparent; border: 1px solid #ff8c00; color: #ff8c00; padding: 0.2rem 0.6rem; border-radius: 16px; cursor: pointer; font-size: 0.8rem; flex-shrink: 0; }
-    #typing-indicator-header { font-size: 0.9rem; color: #ff8c00; font-style: italic; white-space: nowrap; flex-shrink: 0; }
+    #typing-indicator-header { font-size: 0.9rem; color: #ff8c00; font-style: italic; white-space: nowrap; flex-shrink: 0; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
     #messages { flex: 1; padding: 0.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; scroll-behavior: smooth; }
     .date-separator { text-align: center; font-size: 0.8rem; color: #aaa; margin: 0.5rem 0; position: relative; }
     .date-separator span { background: #1e1e1e; padding: 0.2rem 1rem; border-radius: 20px; }
@@ -91,7 +91,7 @@
       .notification-badge { min-width: 28px; height: 28px; font-size: 1rem; }
       #chat-header { flex-wrap: nowrap; padding: 0.5rem; font-size: 1rem; }
       #chat-title { font-size: 1rem; }
-      #typing-indicator-header { font-size: 0.8rem; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #typing-indicator-header { font-size: 0.8rem; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
       #clear-chat-btn { font-size: 0.7rem; padding: 0.1rem 0.4rem; }
       .input-area { flex-wrap: wrap; padding: 0.3rem; }
       #message-input { flex: 1 1 auto; min-width: 120px; font-size: 0.9rem; }
@@ -204,7 +204,53 @@
     let editingMessageId = null;
     let lastSeenTimer = null;
 
-    // Загрузка из localStorage
+    // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ОБЪЯВЛЕНЫ ДО ИХ ВЫЗОВА) ==========
+    function cancelReply() {
+      replyToMessage = null;
+      replyPreview.style.display = 'none';
+      replyTextSpan.textContent = '';
+    }
+
+    function cancelFile() {
+      selectedFile = null;
+      fileUpload.value = '';
+      filePreview.style.display = 'none';
+      fileThumb.innerHTML = '';
+    }
+
+    function replyToMsg(msg) {
+      replyToMessage = {
+        id: msg.id,
+        text: msg.text || (msg.fileInfo ? msg.fileInfo.originalname : (msg.imageUrl ? 'Медиа' : '')),
+        fromName: msg.fromName
+      };
+      replyTextSpan.textContent = `Ответ ${msg.isOwn ? 'себе' : replyToMessage.fromName}: ${replyToMessage.text.substring(0, 30)}${replyToMessage.text.length > 30 ? '…' : ''}`;
+      replyPreview.style.display = 'flex';
+    }
+
+    function startEdit(messageId, currentText) {
+      isEditing = true;
+      editingMessageId = messageId;
+      messageInput.value = currentText;
+      messageInput.style.height = 'auto';
+      messageInput.style.height = messageInput.scrollHeight + 'px';
+      messageInput.focus();
+    }
+
+    function deleteMessage(messageId) {
+      if (!confirm('Удалить сообщение?')) return;
+      socket.emit('delete message', { messageId, peerId: selectedUser.id });
+    }
+
+    function formatLastSeen(timestamp) {
+      const diff = Date.now() - timestamp;
+      if (diff < 60000) return 'только что';
+      if (diff < 3600000) return `${Math.floor(diff/60000)} мин. назад`;
+      if (diff < 86400000) return `${Math.floor(diff/3600000)} ч. назад`;
+      return new Date(timestamp).toLocaleDateString();
+    }
+
+    // ========== ЗАГРУЗКА И СОХРАНЕНИЕ ==========
     function loadFromStorage() {
       const savedName = localStorage.getItem('userName');
       const savedId = localStorage.getItem('userId');
@@ -224,6 +270,7 @@
         if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
     }
+
     function saveToStorage() {
       if (currentUser) {
         localStorage.setItem('userName', currentUser.name);
@@ -231,11 +278,13 @@
         localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
       }
     }
+
     function clearStorageAndRelogin() {
       localStorage.removeItem('userName'); localStorage.removeItem('userId'); localStorage.removeItem('chatHistory');
       currentUser = null; selectedUser = null; chatHistory = {}; location.reload();
     }
 
+    // ========== СОБЫТИЯ ВХОДА ==========
     joinBtn.addEventListener('click', () => {
       const name = nameInput.value.trim();
       if (!name) return;
@@ -244,10 +293,12 @@
       socket.emit('join', { name, userId });
       if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
     });
+
     nameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') joinBtn.click(); });
     changeNickBtn.addEventListener('click', clearStorageAndRelogin);
 
     socket.on('joinError', (msg) => { errorDiv.textContent = msg; if (currentUser) clearStorageAndRelogin(); });
+
     socket.on('joined', (user) => {
       currentUser = user;
       localStorage.setItem('userName', user.name); localStorage.setItem('userId', user.id);
@@ -258,22 +309,9 @@
       startLastSeenTimer();
     });
 
-    function startLastSeenTimer() {
-      if (lastSeenTimer) clearInterval(lastSeenTimer);
-      lastSeenTimer = setInterval(() => { buildChatList(); updateChatTitle(); }, 60000);
-    }
-    function updateChatTitle() {
-      if (!selectedUser) return;
-      const isOnline = onlineUsers.some(u => u.id === selectedUser.id);
-      if (isOnline) chatTitle.textContent = `Чат с ${selectedUser.name}`;
-      else {
-        const last = lastSeenMap[selectedUser.id];
-        chatTitle.textContent = `Чат с ${selectedUser.name}${last ? ` (был(а) ${formatLastSeen(last)})` : ' (офлайн)'}`;
-      }
-    }
-
     socket.on('kicked', (data) => { if (data.userId === currentUser?.id) { alert(data.message); location.reload(); } });
 
+    // ========== ПОДПИСКА НА PUSH ==========
     async function subscribeToPush() {
       if (pushSubscriptionAttempted) return;
       pushSubscriptionAttempted = true;
@@ -300,6 +338,23 @@
       }
     }
 
+    // ========== ТАЙМЕР LAST SEEN ==========
+    function startLastSeenTimer() {
+      if (lastSeenTimer) clearInterval(lastSeenTimer);
+      lastSeenTimer = setInterval(() => { buildChatList(); updateChatTitle(); }, 60000);
+    }
+
+    function updateChatTitle() {
+      if (!selectedUser) return;
+      const isOnline = onlineUsers.some(u => u.id === selectedUser.id);
+      if (isOnline) chatTitle.textContent = `Чат с ${selectedUser.name}`;
+      else {
+        const last = lastSeenMap[selectedUser.id];
+        chatTitle.textContent = `Чат с ${selectedUser.name}${last ? ` (был(а) ${formatLastSeen(last)})` : ' (офлайн)'}`;
+      }
+    }
+
+    // ========== ОБНОВЛЕНИЕ СПИСКА ПОЛЬЗОВАТЕЛЕЙ ==========
     socket.on('user list', (online) => { onlineUsers = online; buildChatList(); updateChatTitle(); });
     socket.on('last seen update', (lastSeen) => { lastSeenMap = lastSeen; buildChatList(); updateChatTitle(); });
 
@@ -364,14 +419,6 @@
       });
     }
 
-    function formatLastSeen(timestamp) {
-      const diff = Date.now() - timestamp;
-      if (diff < 60000) return 'только что';
-      if (diff < 3600000) return `${Math.floor(diff/60000)} мин. назад`;
-      if (diff < 86400000) return `${Math.floor(diff/3600000)} ч. назад`;
-      return new Date(timestamp).toLocaleDateString();
-    }
-
     function deleteChat(peerId) {
       if (!confirm('Удалить историю переписки?')) return;
       delete chatHistory[peerId];
@@ -380,6 +427,7 @@
       buildChatList();
     }
 
+    // ========== ВЫБОР ПОЛЬЗОВАТЕЛЯ ==========
     function selectUser(chat) {
       selectedUser = chat;
       updateChatTitle();
@@ -431,7 +479,7 @@
       messageInput.disabled = true; sendBtn.disabled = true;
       clearChatBtn.style.display = 'none';
       messagesDiv.innerHTML = '';
-      replyToMessage = null; replyPreview.style.display = 'none';
+      cancelReply();
       cancelFile();
       buildChatList();
       chatListEl.scrollTop = 0;
@@ -451,11 +499,7 @@
       if (confirm('Очистить всю историю?')) socket.emit('clear chat', { peerId: selectedUser.id });
     });
 
-    // Enter - отправка, Shift+Enter - новая строка
-    messageInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-    });
-
+    // ========== ИНДИКАТОР ПЕЧАТИ ==========
     messageInput.addEventListener('input', function() {
       this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';
       if (!selectedUser || !selectedUser.online) return;
@@ -464,7 +508,7 @@
       typingTimer = setTimeout(() => { socket.emit('stop typing', { to: selectedUser.id }); }, 2000);
     });
 
-    // ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОТПРАВКИ ==========
+    // ========== ОТПРАВКА СООБЩЕНИЯ (ИСПРАВЛЕНО) ==========
     function sendMessage() {
       if (!selectedUser) return;
       const text = messageInput.value.trim();
@@ -554,53 +598,13 @@
       }
     }
 
+    // Привязка отправки
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
     sendBtn.addEventListener('click', sendMessage);
 
-    // Вспомогательные функции
-    function startEdit(messageId, currentText) {
-      isEditing = true; editingMessageId = messageId;
-      messageInput.value = currentText;
-      messageInput.style.height = 'auto'; messageInput.style.height = messageInput.scrollHeight + 'px';
-      messageInput.focus();
-    }
-    function deleteMessage(messageId) {
-      if (!confirm('Удалить сообщение?')) return;
-      socket.emit('delete message', { messageId, peerId: selectedUser.id });
-    }
-    function replyToMsg(msg) {
-      replyToMessage = {
-        id: msg.id,
-        text: msg.text || (msg.fileInfo ? msg.fileInfo.originalname : (msg.imageUrl ? 'Медиа' : '')),
-        fromName: msg.fromName
-      };
-      replyTextSpan.textContent = `Ответ ${msg.isOwn ? 'себе' : replyToMessage.fromName}: ${replyToMessage.text.substring(0, 30)}${replyToMessage.text.length > 30 ? '…' : ''}`;
-      replyPreview.style.display = 'flex';
-    }
-    cancelReplyBtn.addEventListener('click', () => { replyToMessage = null; replyPreview.style.display = 'none'; replyTextSpan.textContent = ''; });
-
-    fileUpload.addEventListener('change', () => {
-      if (fileUpload.files.length) {
-        selectedFile = fileUpload.files[0];
-        fileNameSpan.textContent = selectedFile.name;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          fileThumb.innerHTML = '';
-          if (selectedFile.type.startsWith('image/')) {
-            const img = document.createElement('img');
-            img.src = e.target.result;
-            img.style.maxWidth = '30px'; img.style.maxHeight = '30px'; img.style.borderRadius = '4px';
-            fileThumb.appendChild(img);
-          } else if (selectedFile.type.startsWith('video/')) fileThumb.textContent = '🎥';
-          else fileThumb.textContent = '📎';
-        };
-        reader.readAsDataURL(selectedFile);
-        filePreview.style.display = 'flex';
-      } else cancelFile();
-    });
-    function cancelFile() { selectedFile = null; fileUpload.value = ''; filePreview.style.display = 'none'; fileThumb.innerHTML = ''; }
-    cancelFileBtn.addEventListener('click', cancelFile);
-
-    // Обработчики событий сервера
+    // ========== ОБРАБОТЧИКИ СОБЫТИЙ ОТ СЕРВЕРА ==========
     socket.on('private message', (msg) => {
       const isOwn = msg.from === currentUser.id;
       const peerId = isOwn ? msg.to : msg.from;
@@ -633,6 +637,7 @@
       saveToStorage();
       if (selectedUser && (selectedUser.id === from || from === currentUser.id)) loadChatHistory(selectedUser.id, false);
     });
+
     socket.on('message deleted', ({ messageId, from }) => {
       for (let peerId in chatHistory) {
         const msgs = chatHistory[peerId].messages;
@@ -643,18 +648,22 @@
       if (selectedUser && (selectedUser.id === from || from === currentUser.id)) loadChatHistory(selectedUser.id, false);
       buildChatList();
     });
+
     socket.on('chat cleared', ({ peerId }) => {
       if (chatHistory[peerId]) { chatHistory[peerId].messages = []; saveToStorage(); if (selectedUser && selectedUser.id === peerId) messagesDiv.innerHTML = ''; buildChatList(); }
     });
+
     socket.on('typing', ({ from, fromName }) => {
       if (chatHistory[from]) { chatHistory[from].isTyping = true; buildChatList(); }
       if (selectedUser && selectedUser.id === from) typingIndicatorHeader.textContent = `${fromName} печатает...`;
     });
+
     socket.on('stop typing', ({ from }) => {
       if (chatHistory[from]) { chatHistory[from].isTyping = false; buildChatList(); }
       if (selectedUser && selectedUser.id === from) typingIndicatorHeader.textContent = '';
     });
 
+    // ========== ОТОБРАЖЕНИЕ СООБЩЕНИЯ ==========
     function displayMessage(msg) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${msg.isOwn ? 'own' : 'other'}`;
@@ -697,6 +706,7 @@
         nameSpan.className = 'sender'; nameSpan.textContent = msg.fromName;
         messageDiv.appendChild(nameSpan);
       }
+
       if (msg.text) {
         const textSpan = document.createElement('div');
         textSpan.textContent = msg.text;
@@ -748,6 +758,7 @@
 
     function isVideoUrl(url) { return /\.(mp4|webm|ogg|mov|avi)$/i.test(url); }
 
+    // ========== ПРОКРУТКА ВНИЗ ==========
     messagesDiv.addEventListener('scroll', checkScroll);
     scrollDownBtn.addEventListener('click', () => { messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: 'smooth' }); });
     function checkScroll() {
@@ -756,6 +767,7 @@
       scrollDownBtn.style.display = atBottom ? 'none' : 'flex';
     }
 
+    // ========== ЗВУКИ ==========
     function playNotificationSound() { playBeep(800, 0.2, 0.1); }
     function playActiveChatSound() { playBeep(600, 0.1, 0.05); }
     function playSelfSendSound() { playBeep(600, 0.1, 0.05); }
@@ -775,10 +787,35 @@
       oscillator.start(); oscillator.stop(ctx.currentTime + duration);
     }
 
+    // ========== ИНИЦИАЛИЗАЦИЯ ==========
     window.addEventListener('load', loadFromStorage);
     window.addEventListener('resize', () => {
       if (window.innerWidth > 768) chatMain.classList.remove('active');
       else if (selectedUser) chatMain.classList.add('active'); else chatMain.classList.remove('active');
+    });
+
+    // Дополнительно: кнопка отмены выбора файла
+    cancelFileBtn.addEventListener('click', cancelFile);
+    cancelReplyBtn.addEventListener('click', cancelReply);
+
+    fileUpload.addEventListener('change', () => {
+      if (fileUpload.files.length) {
+        selectedFile = fileUpload.files[0];
+        fileNameSpan.textContent = selectedFile.name;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          fileThumb.innerHTML = '';
+          if (selectedFile.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.style.maxWidth = '30px'; img.style.maxHeight = '30px'; img.style.borderRadius = '4px';
+            fileThumb.appendChild(img);
+          } else if (selectedFile.type.startsWith('video/')) fileThumb.textContent = '🎥';
+          else fileThumb.textContent = '📎';
+        };
+        reader.readAsDataURL(selectedFile);
+        filePreview.style.display = 'flex';
+      } else cancelFile();
     });
   </script>
 </body>
