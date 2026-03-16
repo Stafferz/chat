@@ -388,16 +388,38 @@
       font-style: italic;
     }
 
-    .own-actions {
+    /* Кнопка ответа для своих сообщений (слева вверху) */
+    .own-reply-btn {
       position: absolute;
       top: 2px;
       left: 2px;
+      background: transparent;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 2px 4px;
+      border-radius: 10px;
+      z-index: 2;
+      opacity: 0.9;
+    }
+    .own-reply-btn:hover {
+      background: rgba(255,140,0,0.3);
+    }
+
+    /* Кнопки редактирования/удаления для своих сообщений (слева, по центру) */
+    .own-edit-delete {
+      position: absolute;
+      left: -30px;
+      top: 50%;
+      transform: translateY(-50%);
       display: flex;
+      flex-direction: column;
       gap: 2px;
       opacity: 0.9;
       z-index: 2;
     }
-    .own-actions button {
+    .own-edit-delete button {
       background: transparent;
       border: none;
       color: inherit;
@@ -406,10 +428,11 @@
       padding: 2px 4px;
       border-radius: 10px;
     }
-    .own-actions button:hover {
+    .own-edit-delete button:hover {
       background: rgba(255,140,0,0.3);
     }
 
+    /* Кнопка ответа для чужих сообщений (справа вверху) */
     .other-reply-btn {
       position: absolute;
       top: 2px;
@@ -1094,8 +1117,9 @@
       }
     });
 
+    // Enter - отправка, Shift+Enter - новая строка
     messageInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
       }
@@ -1125,7 +1149,7 @@
         messageInput.value = '';
         messageInput.style.height = 'auto';
         cancelReply();
-        setTimeout(() => messageInput.focus(), 100);
+        setTimeout(() => messageInput.focus(), 300);
         return;
       }
 
@@ -1173,14 +1197,14 @@
           messageInput.style.height = 'auto';
           cancelReply();
           cancelFile();
-          setTimeout(() => messageInput.focus(), 100);
+          setTimeout(() => messageInput.focus(), 300);
         };
         xhr.onerror = () => {
           alert('Ошибка сети');
           sendBtn.textContent = originalText;
           sendBtn.disabled = false;
           cancelFile();
-          setTimeout(() => messageInput.focus(), 100);
+          setTimeout(() => messageInput.focus(), 300);
         };
         xhr.send(formData);
       } else {
@@ -1197,7 +1221,7 @@
         messageInput.value = '';
         messageInput.style.height = 'auto';
         cancelReply();
-        setTimeout(() => messageInput.focus(), 100);
+        setTimeout(() => messageInput.focus(), 300);
       }
     }
 
@@ -1360,17 +1384,20 @@
       messageDiv.dataset.messageId = msg.id;
 
       if (msg.isOwn) {
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'own-actions';
-
+        // Кнопка ответа (слева вверху)
         const replyBtn = document.createElement('button');
+        replyBtn.className = 'own-reply-btn';
         replyBtn.textContent = '↩️';
         replyBtn.title = 'Ответить';
         replyBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           replyToMsg(msg);
         });
-        actionsDiv.appendChild(replyBtn);
+        messageDiv.appendChild(replyBtn);
+
+        // Кнопки редактирования/удаления (слева, по центру)
+        const editDeleteDiv = document.createElement('div');
+        editDeleteDiv.className = 'own-edit-delete';
 
         const editBtn = document.createElement('button');
         editBtn.textContent = '✏️';
@@ -1379,7 +1406,7 @@
           e.stopPropagation();
           startEdit(msg.id, msg.text || '');
         });
-        actionsDiv.appendChild(editBtn);
+        editDeleteDiv.appendChild(editBtn);
 
         const delBtn = document.createElement('button');
         delBtn.textContent = '🗑️';
@@ -1388,10 +1415,11 @@
           e.stopPropagation();
           deleteMessage(msg.id);
         });
-        actionsDiv.appendChild(delBtn);
+        editDeleteDiv.appendChild(delBtn);
 
-        messageDiv.appendChild(actionsDiv);
+        messageDiv.appendChild(editDeleteDiv);
       } else {
+        // Для чужих только кнопка ответа (справа вверху)
         const replyBtn = document.createElement('button');
         replyBtn.className = 'other-reply-btn';
         replyBtn.textContent = '↩️';
