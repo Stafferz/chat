@@ -82,7 +82,7 @@
     .file-preview .file-thumb img { width: 100%; height: 100%; object-fit: cover; }
     .file-preview span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .file-preview button { background: none; border: none; color: #ff8c00; font-size: 1rem; cursor: pointer; }
-    #scroll-down-btn { position: absolute; bottom: 80px; right: 20px; background: #ff8c00; color: #121212; border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 1.8rem; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: none; align-items: center; justify-content: center; z-index: 20; transition: transform 0.2s; }
+    #scroll-down-btn { position: absolute; background: #ff8c00; color: #121212; border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 1.8rem; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: none; align-items: center; justify-content: center; z-index: 20; transition: transform 0.2s; }
     #scroll-down-btn:hover { transform: scale(1.1); }
     @media (max-width: 768px) {
       .sidebar { width: 100%; height: 100%; border-right: none; }
@@ -210,14 +210,13 @@
     let editingMessageId = null;
     let lastSeenTimer = null;
 
-    // ========== ДИНАМИЧЕСКИЙ РАСЧЁТ ВЫСОТЫ СООБЩЕНИЙ ==========
+    // ========== ДИНАМИЧЕСКИЙ РАСЧЁТ ВЫСОТЫ СООБЩЕНИЙ И ПОЗИЦИИ КНОПКИ ==========
     function adjustMessagesHeight() {
-      if (!selectedUser) return; // если чат не открыт, не нужно
+      if (!selectedUser) return;
       const header = document.getElementById('chat-header');
       const inputArea = document.querySelector('.input-area');
       if (!header || !inputArea) return;
 
-      // Используем visualViewport, если доступен, иначе window.innerHeight
       const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
       const headerHeight = header.getBoundingClientRect().height;
       const inputHeight = inputArea.getBoundingClientRect().height;
@@ -226,16 +225,31 @@
       if (availableHeight > 0) {
         messagesDiv.style.height = availableHeight + 'px';
       } else {
-        // Если слишком мало места, задаём минимальную высоту
         messagesDiv.style.height = '100px';
       }
     }
 
+    function updateScrollButtonPosition() {
+      if (!selectedUser) return;
+      const inputArea = document.querySelector('.input-area');
+      if (!inputArea) return;
+      const inputHeight = inputArea.getBoundingClientRect().height;
+      // Отступ снизу: высота поля ввода + небольшой запас (10px)
+      const bottomOffset = inputHeight + 10;
+      scrollDownBtn.style.bottom = bottomOffset + 'px';
+    }
+
     // Подписка на изменения visualViewport (для мобильных)
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', adjustMessagesHeight);
+      window.visualViewport.addEventListener('resize', () => {
+        adjustMessagesHeight();
+        updateScrollButtonPosition();
+      });
     }
-    window.addEventListener('resize', adjustMessagesHeight);
+    window.addEventListener('resize', () => {
+      adjustMessagesHeight();
+      updateScrollButtonPosition();
+    });
 
     // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
     function cancelReply() {
@@ -251,7 +265,6 @@
       fileThumb.innerHTML = '';
     }
 
-    // ========== ФУНКЦИЯ ОТВЕТА С ФОКУСОМ ==========
     function replyToMsg(msg) {
       replyToMessage = {
         id: msg.id,
@@ -260,7 +273,7 @@
       };
       replyTextSpan.textContent = `Ответ ${msg.isOwn ? 'себе' : replyToMessage.fromName}: ${replyToMessage.text.substring(0, 30)}${replyToMessage.text.length > 30 ? '…' : ''}`;
       replyPreview.style.display = 'flex';
-      setTimeout(() => messageInput.focus(), 500); // большой таймаут для надёжного открытия клавиатуры
+      setTimeout(() => messageInput.focus(), 500);
     }
 
     function startEdit(messageId, currentText) {
@@ -490,8 +503,12 @@
         chatMain.classList.add('active');
         history.pushState({ screen: 'chat', peerId: chat.id }, '', `#chat/${chat.id}`);
       }
-      // После вызова чата подстраиваем высоту
-      setTimeout(adjustMessagesHeight, 100);
+      setTimeout(() => {
+        adjustMessagesHeight();
+        updateScrollButtonPosition();
+        // Принудительная прокрутка вниз после загрузки истории
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }, 100);
     }
 
     function loadChatHistory(peerId, scrollToBottom = false) {
@@ -515,7 +532,9 @@
         }
         displayMessage(msg);
       });
-      if (scrollToBottom) messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      if (scrollToBottom) {
+        // Прокрутка произойдёт после рендера в setTimeout в selectUser
+      }
       checkScroll();
     }
 
@@ -598,7 +617,6 @@
       const text = messageInput.value.trim();
       if (!text && !selectedFile && !isEditing) return;
 
-      // Режим редактирования
       if (isEditing) {
         socket.emit('edit message', { messageId: editingMessageId, newText: text, peerId: selectedUser.id });
         isEditing = false; editingMessageId = null;
@@ -608,7 +626,6 @@
         return;
       }
 
-      // Отправка файла
       if (selectedFile) {
         const fileToSend = selectedFile;
         const replyToCopy = replyToMessage ? { ...replyToMessage } : null;
@@ -704,6 +721,9 @@
         const wasAtBottom = messagesDiv.scrollHeight - messagesDiv.scrollTop - messagesDiv.clientHeight < 50;
         loadChatHistory(peerId, wasAtBottom);
         if (!isOwn) message.read = true;
+        if (wasAtBottom) {
+          setTimeout(() => messagesDiv.scrollTop = messagesDiv.scrollHeight, 50);
+        }
       }
       buildChatList();
     });
