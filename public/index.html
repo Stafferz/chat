@@ -6,7 +6,6 @@
   <title>Оранжевый чат</title>
   <link rel="icon" type="image/png" href="/favicon.png">
   <style>
-    /* Все стили без изменений (компактные, кнопки как требовалось) */
     * {
       margin: 0;
       padding: 0;
@@ -648,12 +647,52 @@
   </style>
 </head>
 <body>
-  <!-- (разметка без изменений) -->
-  <div id="login">...</div>
-  <div id="chat">...</div>
+  <div id="login">
+    <h2>Оранжевый чат</h2>
+    <input type="text" id="name-input" placeholder="Ваше имя" autofocus>
+    <button id="join-btn">Войти</button>
+    <div id="error"></div>
+  </div>
+
+  <div id="chat">
+    <div class="chat-container">
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <span>Чаты</span>
+          <button id="change-nick-btn">Сменить ник</button>
+        </div>
+        <ul id="chat-list"></ul>
+      </div>
+      <div class="main" id="chat-main">
+        <div id="chat-header">
+          <button id="back-btn">←</button>
+          <span id="chat-title">Выберите собеседника</span>
+          <span id="typing-indicator-header"></span>
+          <button id="clear-chat-btn" style="display: none;">Очистить</button>
+        </div>
+        <div id="messages"></div>
+        <button id="scroll-down-btn">↓</button>
+        <div class="input-area">
+          <div id="reply-preview" class="reply-preview" style="display: none;">
+            <span id="reply-text"></span>
+            <button id="cancel-reply-btn">✖</button>
+          </div>
+          <div id="file-preview" class="file-preview" style="display: none;">
+            <span class="file-thumb"></span>
+            <span id="file-name"></span>
+            <button id="cancel-file-btn">✖</button>
+          </div>
+          <textarea id="message-input" placeholder="Сообщение" rows="1" disabled></textarea>
+          <label for="file-upload" class="file-upload-label" id="upload-label">📎</label>
+          <input type="file" id="file-upload" accept="image/*,video/*,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip">
+          <button id="send-btn" disabled>Отправить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    // Полный скрипт с задержкой фокуса
     const socket = io();
 
     function generateClientId() {
@@ -671,7 +710,7 @@
       return outputArray;
     }
 
-    // Элементы DOM (как в предыдущей версии)
+    // Элементы DOM
     const loginDiv = document.getElementById('login');
     const chatDiv = document.getElementById('chat');
     const nameInput = document.getElementById('name-input');
@@ -698,7 +737,7 @@
     const fileNameSpan = document.getElementById('file-name');
     const cancelFileBtn = document.getElementById('cancel-file-btn');
 
-    // Состояние (то же)
+    // Состояние
     let currentUser = null;
     let selectedUser = null;
     let onlineUsers = [];
@@ -809,10 +848,68 @@
       if (data.userId === currentUser?.id) { alert(data.message); location.reload(); }
     });
 
+    // Подписка на push-уведомления
     async function subscribeToPush() {
-      // (без изменений)
+      if (pushSubscriptionAttempted) return;
+      pushSubscriptionAttempted = true;
+
+      if (!('Notification' in window)) { console.log('Notification не поддерживается'); return; }
+      if (!('serviceWorker' in navigator)) { console.log('ServiceWorker не поддерживается'); return; }
+      if (!('PushManager' in window)) { console.log('PushManager не поддерживается'); return; }
+
+      if (Notification.permission === 'denied') {
+        console.log('Уведомления заблокированы пользователем');
+        return;
+      }
+
+      if (Notification.permission === 'granted') {
+        try {
+          console.log('Регистрация service worker...');
+          const registration = await navigator.serviceWorker.register('/service-worker.js');
+          console.log('Service worker зарегистрирован', registration);
+
+          await navigator.serviceWorker.ready;
+          console.log('Service worker готов');
+
+          const existingSubscription = await registration.pushManager.getSubscription();
+          if (existingSubscription) {
+            console.log('Удаляем старую подписку');
+            await existingSubscription.unsubscribe();
+          }
+
+          console.log('Подписка на push...');
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlB64ToUint8Array('BK0ZuTTtvnwKTDxfjMrMTeYWoAejPX_J6PIHPMwvx6b5J3V3LuM8MV91d1wbb_kDj7huTVQgryycEgzCTIKdcNk')
+          });
+          console.log('Подписка получена', subscription);
+
+          const res = await fetch('/api/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              subscription: subscription
+            })
+          });
+          if (res.ok) {
+            console.log('Подписка отправлена на сервер');
+          } else {
+            console.error('Ошибка сохранения подписки', await res.text());
+          }
+        } catch (err) {
+          console.error('Ошибка подписки на push:', err);
+        }
+      } else {
+        console.log('Запрашиваем разрешение на уведомления');
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          await subscribeToPush();
+        }
+      }
     }
 
+    // Обновление списка онлайн
     socket.on('user list', (online) => {
       onlineUsers = online;
       buildChatList();
