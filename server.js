@@ -36,7 +36,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 } // 50 МБ
+  limits: { fileSize: 50 * 1024 * 1024 } // 50 МБ
 });
 
 app.use(express.json());
@@ -48,7 +48,6 @@ app.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Файл не отправлен' });
   }
-  // Возвращаем URL и тип файла
   res.json({
     url: `/uploads/${req.file.filename}`,
     mimetype: req.file.mimetype,
@@ -97,7 +96,6 @@ io.on('connection', (socket) => {
 
     socket.emit('joined', { id: userId, name });
 
-    // Отправляем офлайн-сообщения, если есть
     if (offlineMessages.has(userId)) {
       const messages = offlineMessages.get(userId);
       messages.forEach(msg => socket.emit('private message', msg));
@@ -113,29 +111,26 @@ io.on('connection', (socket) => {
     if (!fromUser) return;
 
     const message = {
-      id: generateId(), // уникальный ID сообщения
+      id: generateId(),
       from: fromUser.id,
       fromName: fromUser.name,
       to: to,
       text,
       imageUrl,
-      fileInfo, // добавлено: информация о файле (имя, тип, URL)
-      replyTo,   // объект с id, text, fromName
+      fileInfo,
+      replyTo,
       timestamp: Date.now(),
       edited: false
     };
 
     const recipient = users.get(to);
     if (recipient && recipient.socketId) {
-      // Получатель онлайн
       const toSocket = io.sockets.sockets.get(recipient.socketId);
       if (toSocket) toSocket.emit('private message', message);
     } else {
-      // Получатель офлайн – сохраняем
       if (!offlineMessages.has(to)) offlineMessages.set(to, []);
       offlineMessages.get(to).push(message);
 
-      // Пытаемся отправить push-уведомление
       const subscription = pushSubscriptions.get(to);
       if (subscription) {
         const payload = JSON.stringify({
@@ -155,7 +150,6 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Отправляем подтверждение отправителю
     socket.emit('private message', message);
   });
 
@@ -164,7 +158,6 @@ io.on('connection', (socket) => {
     const fromUser = Array.from(users.values()).find(u => u.socketId === socket.id);
     if (!fromUser) return;
 
-    // Пересылаем событие получателю, если он онлайн
     const recipient = users.get(peerId);
     if (recipient && recipient.socketId) {
       const toSocket = io.sockets.sockets.get(recipient.socketId);
@@ -172,7 +165,6 @@ io.on('connection', (socket) => {
         toSocket.emit('message edited', { messageId, newText, from: fromUser.id });
       }
     }
-    // Также отправляем обратно отправителю для обновления UI
     socket.emit('message edited', { messageId, newText, from: fromUser.id });
   });
 
@@ -241,7 +233,6 @@ io.on('connection', (socket) => {
 function broadcastUserList() {
   const userList = Array.from(users.values()).map(({ id, name }) => ({ id, name }));
   io.emit('user list', userList);
-  // Также отправляем lastSeen всем
   const lastSeenObj = Object.fromEntries(lastSeen);
   io.emit('last seen update', lastSeenObj);
 }
