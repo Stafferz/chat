@@ -218,7 +218,7 @@
       fileThumb.innerHTML = '';
     }
 
-    // ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОТВЕТА ==========
+    // ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОТВЕТА (таймаут 500 мс) ==========
     function replyToMsg(msg) {
       replyToMessage = {
         id: msg.id,
@@ -227,8 +227,8 @@
       };
       replyTextSpan.textContent = `Ответ ${msg.isOwn ? 'себе' : replyToMessage.fromName}: ${replyToMessage.text.substring(0, 30)}${replyToMessage.text.length > 30 ? '…' : ''}`;
       replyPreview.style.display = 'flex';
-      // Добавляем фокус в поле ввода, чтобы клавиатура не закрывалась на телефоне
-      setTimeout(() => messageInput.focus(), 100);
+      // Увеличенный таймаут, чтобы клавиатура успела открыться и поле ввода не перекрывалось
+      setTimeout(() => messageInput.focus(), 500);
     }
 
     function startEdit(messageId, currentText) {
@@ -509,6 +509,43 @@
       socket.emit('typing', { to: selectedUser.id });
       if (typingTimer) clearTimeout(typingTimer);
       typingTimer = setTimeout(() => { socket.emit('stop typing', { to: selectedUser.id }); }, 2000);
+    });
+
+    // ========== ВСТАВКА ИЗОБРАЖЕНИЯ ИЗ БУФЕРА (CTRL+V) ==========
+    messageInput.addEventListener('paste', async (e) => {
+      const items = (e.clipboardData || window.clipboardData).items;
+      for (let item of items) {
+        if (item.type.indexOf('image') === 0) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!selectedUser) {
+            alert('Сначала выберите собеседника');
+            return;
+          }
+          const formData = new FormData();
+          formData.append('file', file);
+          try {
+            const res = await fetch('/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            const fileInfo = {
+              url: data.url,
+              mimetype: data.mimetype,
+              originalname: data.originalname
+            };
+            socket.emit('private message', {
+              to: selectedUser.id,
+              text: '',
+              fileInfo: fileInfo,
+              replyTo: replyToMessage ? { ...replyToMessage } : null
+            });
+            playSelfSendSound();
+          } catch (err) {
+            console.error('Ошибка загрузки из буфера:', err);
+            alert('Не удалось загрузить изображение');
+          }
+          break;
+        }
+      }
     });
 
     // ========== ОТПРАВКА СООБЩЕНИЯ ==========
