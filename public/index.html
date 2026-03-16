@@ -240,6 +240,7 @@
       flex-direction: column;
       background: #121212;
       position: relative;
+      overflow: hidden;
     }
 
     #chat-header {
@@ -530,6 +531,21 @@
       color: #fff;
       font-size: 0.9rem;
     }
+    .file-preview .file-thumb {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      background: #444;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .file-preview .file-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
     .file-preview span {
       flex: 1;
       white-space: nowrap;
@@ -561,9 +577,10 @@
       align-items: center;
       justify-content: center;
       z-index: 20;
+      transition: transform 0.2s;
     }
     #scroll-down-btn:hover {
-      background: #e07b00;
+      transform: scale(1.1);
     }
 
     /* Мобильные стили */
@@ -583,23 +600,29 @@
       .notification-badge { min-width: 28px; height: 28px; font-size: 1rem; }
 
       .input-area {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        align-items: center;
+        padding: 0.3rem;
       }
       #message-input {
-        flex: 1 1 100%;
-        order: 1;
+        flex: 1 1 auto;
+        margin-right: 5px;
+        min-width: 0;
       }
       .file-upload-label {
-        order: 2;
+        margin-right: 5px;
+        padding: 0.4rem 0.8rem;
+        font-size: 0.9rem;
       }
       #send-btn {
-        order: 3;
+        padding: 0.4rem 0.8rem;
+        min-width: 60px;
+        font-size: 0.9rem;
       }
-      .file-preview {
-        order: 0;
-      }
-      .reply-preview {
-        order: 0;
+      .file-preview, .reply-preview {
+        width: 100%;
+        order: -1;
+        margin-bottom: 5px;
       }
     }
   </style>
@@ -636,6 +659,7 @@
             <button id="cancel-reply-btn">✖</button>
           </div>
           <div id="file-preview" class="file-preview" style="display: none;">
+            <span class="file-thumb"></span>
             <span id="file-name"></span>
             <button id="cancel-file-btn">✖</button>
           </div>
@@ -691,19 +715,20 @@
     const replyTextSpan = document.getElementById('reply-text');
     const cancelReplyBtn = document.getElementById('cancel-reply-btn');
     const filePreview = document.getElementById('file-preview');
+    const fileThumb = filePreview.querySelector('.file-thumb');
     const fileNameSpan = document.getElementById('file-name');
     const cancelFileBtn = document.getElementById('cancel-file-btn');
 
     // Состояние
     let currentUser = null;
     let selectedUser = null;
-    let onlineUsers = []; // {id, name}
-    let lastSeenMap = {}; // id -> timestamp
-    let chatHistory = {}; // peerId -> { messages: [], peerName, isTyping }
+    let onlineUsers = [];
+    let lastSeenMap = {};
+    let chatHistory = {};
     let audioContext = null;
     let typingTimer = null;
     let pushSubscriptionAttempted = false;
-    let replyToMessage = null; // { id, text, fromName }
+    let replyToMessage = null;
     let selectedFile = null;
     let isEditing = false;
     let editingMessageId = null;
@@ -777,7 +802,6 @@
       loginDiv.style.display = 'none';
       chatDiv.style.display = 'flex';
       subscribeToPush();
-      // Добавляем состояние истории для навигации
       history.replaceState({ screen: 'chatlist' }, '');
     });
 
@@ -785,9 +809,9 @@
       if (data.userId === currentUser?.id) { alert(data.message); location.reload(); }
     });
 
-    // Подписка на push (без изменений)
+    // Подписка на push (сокращено для brevity, но в реальном коде должна быть полная функция)
     async function subscribeToPush() {
-      // ... (код тот же, что и раньше, опустим для краткости, но он должен остаться)
+      // ... (код как в предыдущей версии)
     }
 
     // Обновление списка онлайн
@@ -798,7 +822,7 @@
 
     socket.on('last seen update', (lastSeen) => {
       lastSeenMap = lastSeen;
-      buildChatList(); // обновим отображение last seen
+      buildChatList();
     });
 
     function buildChatList() {
@@ -919,7 +943,6 @@
     function loadChatHistory(peerId) {
       messagesDiv.innerHTML = '';
       const history = chatHistory[peerId]?.messages || [];
-      // Группировка по датам
       let lastDate = null;
       history.forEach(msg => {
         const msgDate = new Date(msg.timestamp).toDateString();
@@ -960,14 +983,11 @@
       }
     }
 
-    // Обработка кнопки назад на Android
     window.addEventListener('popstate', (event) => {
       if (event.state && event.state.screen === 'chatlist') {
         if (selectedUser) closeChat();
       } else if (!event.state || event.state.screen === 'chat') {
-        // остаёмся в чате, если он открыт
-      } else {
-        // если ничего нет, возможно выход
+        // остаёмся
       }
     });
 
@@ -980,13 +1000,11 @@
       }
     });
 
-    // Отправка сообщения
     function sendMessage() {
       const text = messageInput.value.trim();
       if (!text && !selectedFile && !isEditing) return;
 
       if (isEditing) {
-        // Режим редактирования
         socket.emit('edit message', {
           messageId: editingMessageId,
           newText: text,
@@ -1000,7 +1018,6 @@
       }
 
       if (selectedFile) {
-        // Отправка файла
         const formData = new FormData();
         formData.append('file', selectedFile);
 
@@ -1028,10 +1045,13 @@
               to: selectedUser.id,
               text: text,
               fileInfo: fileInfo,
-              replyTo: replyToMessage ? replyToMessage.id : null
+              replyTo: replyToMessage ? {
+                id: replyToMessage.id,
+                text: replyToMessage.text,
+                fromName: replyToMessage.fromName
+              } : null
             });
             playSelfSendSound();
-            // Очищаем поля
             messageInput.value = '';
             messageInput.style.height = 'auto';
             cancelReply();
@@ -1041,7 +1061,7 @@
           }
           sendBtn.textContent = originalText;
           sendBtn.disabled = false;
-          messageInput.focus(); // чтобы клавиатура не закрывалась на телефоне
+          messageInput.focus();
         };
         xhr.onerror = () => {
           alert('Ошибка сети');
@@ -1050,42 +1070,44 @@
         };
         xhr.send(formData);
       } else {
-        // Текстовое сообщение
         socket.emit('private message', {
           to: selectedUser.id,
           text: text,
-          replyTo: replyToMessage ? replyToMessage.id : null
+          replyTo: replyToMessage ? {
+            id: replyToMessage.id,
+            text: replyToMessage.text,
+            fromName: replyToMessage.fromName
+          } : null
         });
         playSelfSendSound();
         messageInput.value = '';
         messageInput.style.height = 'auto';
         cancelReply();
-        messageInput.focus(); // для мобильных
+        messageInput.focus();
       }
     }
 
     sendBtn.addEventListener('click', sendMessage);
 
-    // Обработка Enter и Shift+Enter в textarea
     messageInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
+      if (e.key === 'Enter') {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+        // иначе новая строка — ничего не делаем
       }
     });
 
-    // Автоизменение высоты textarea
     messageInput.addEventListener('input', function() {
       this.style.height = 'auto';
       this.style.height = (this.scrollHeight) + 'px';
-      // Индикатор печати
       if (!selectedUser || !selectedUser.online) return;
       socket.emit('typing', { to: selectedUser.id });
       if (typingTimer) clearTimeout(typingTimer);
       typingTimer = setTimeout(() => { socket.emit('stop typing', { to: selectedUser.id }); }, 2000);
     });
 
-    // Редактирование сообщения (вызывается из кнопки)
     function startEdit(messageId, currentText) {
       isEditing = true;
       editingMessageId = messageId;
@@ -1095,44 +1117,59 @@
       messageInput.focus();
     }
 
-    // Удаление сообщения
     function deleteMessage(messageId) {
       if (!confirm('Удалить сообщение?')) return;
       socket.emit('delete message', { messageId, peerId: selectedUser.id });
     }
 
-    // Ответ на сообщение
     function replyToMsg(msg) {
-      replyToMessage = { id: msg.id, text: msg.text || (msg.fileInfo ? msg.fileInfo.originalname : (msg.imageUrl ? 'Изображение' : '')), fromName: msg.fromName };
+      replyToMessage = { id: msg.id, text: msg.text || (msg.fileInfo ? msg.fileInfo.originalname : (msg.imageUrl ? 'Медиа' : '')), fromName: msg.fromName };
       replyTextSpan.textContent = `Ответ ${msg.isOwn ? 'себе' : replyToMessage.fromName}: ${replyToMessage.text.substring(0, 30)}${replyToMessage.text.length > 30 ? '…' : ''}`;
       replyPreview.style.display = 'flex';
     }
 
-    cancelReplyBtn.addEventListener('click', cancelReply);
-    function cancelReply() {
+    cancelReplyBtn.addEventListener('click', () => {
       replyToMessage = null;
       replyPreview.style.display = 'none';
-    }
+    });
 
-    // Предпросмотр файла
     fileUpload.addEventListener('change', () => {
       if (fileUpload.files.length) {
         selectedFile = fileUpload.files[0];
         fileNameSpan.textContent = selectedFile.name;
+        // Предпросмотр
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          fileThumb.innerHTML = '';
+          if (selectedFile.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.style.maxWidth = '30px';
+            img.style.maxHeight = '30px';
+            img.style.borderRadius = '4px';
+            fileThumb.appendChild(img);
+          } else if (selectedFile.type.startsWith('video/')) {
+            fileThumb.textContent = '🎥';
+          } else {
+            fileThumb.textContent = '📎';
+          }
+        };
+        reader.readAsDataURL(selectedFile);
         filePreview.style.display = 'flex';
       } else {
         cancelFile();
       }
     });
 
-    cancelFileBtn.addEventListener('click', cancelFile);
     function cancelFile() {
       selectedFile = null;
       fileUpload.value = '';
       filePreview.style.display = 'none';
+      fileThumb.innerHTML = '';
     }
 
-    // Получение сообщения
+    cancelFileBtn.addEventListener('click', cancelFile);
+
     socket.on('private message', (msg) => {
       const isOwn = msg.from === currentUser.id;
       const peerId = isOwn ? msg.to : msg.from;
@@ -1161,15 +1198,13 @@
         if (isActiveChat) playActiveChatSound(); else playNotificationSound();
       }
       if (isActiveChat) {
-        loadChatHistory(peerId); // перезагрузим с группировкой
+        loadChatHistory(peerId);
         if (!isOwn) message.read = true;
       }
       buildChatList();
     });
 
-    // Редактирование сообщения
     socket.on('message edited', ({ messageId, newText, from }) => {
-      // Обновляем сообщение в истории
       for (let peerId in chatHistory) {
         const msgs = chatHistory[peerId].messages;
         const idx = msgs.findIndex(m => m.id === messageId);
@@ -1185,7 +1220,6 @@
       }
     });
 
-    // Удаление сообщения
     socket.on('message deleted', ({ messageId, from }) => {
       for (let peerId in chatHistory) {
         const msgs = chatHistory[peerId].messages;
@@ -1202,7 +1236,6 @@
       buildChatList();
     });
 
-    // Очистка чата
     socket.on('chat cleared', ({ peerId }) => {
       if (chatHistory[peerId]) {
         chatHistory[peerId].messages = [];
@@ -1222,24 +1255,16 @@
       if (selectedUser && selectedUser.id === from) typingIndicatorHeader.textContent = '';
     });
 
-    // Функция отображения одного сообщения
     function displayMessage(msg) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${msg.isOwn ? 'own' : 'other'}`;
       messageDiv.dataset.messageId = msg.id;
 
-      // Если есть ответ (replyTo), показываем контекст
       if (msg.replyTo) {
         const replyDiv = document.createElement('div');
         replyDiv.className = 'reply-context';
-        // Ищем оригинальное сообщение в истории (может быть не в памяти, но попробуем)
-        let replyText = '...';
-        const peerHistory = chatHistory[selectedUser.id]?.messages || [];
-        const original = peerHistory.find(m => m.id === msg.replyTo);
-        if (original) {
-          replyText = original.text || (original.fileInfo ? original.fileInfo.originalname : (original.imageUrl ? 'Медиа' : ''));
-        }
-        replyDiv.textContent = `↩️ ${replyText.substring(0, 30)}${replyText.length > 30 ? '…' : ''}`;
+        const replyText = msg.replyTo.text || '...';
+        replyDiv.textContent = `↩️ ${msg.replyTo.fromName}: ${replyText.substring(0, 30)}${replyText.length > 30 ? '…' : ''}`;
         messageDiv.appendChild(replyDiv);
       }
 
@@ -1287,7 +1312,6 @@
       timeSpan.textContent = msg.time + (msg.edited ? ' (ред.)' : '');
       messageDiv.appendChild(timeSpan);
 
-      // Кнопки действий (Reply, Edit, Delete)
       const actionsDiv = document.createElement('div');
       actionsDiv.className = 'message-actions';
 
@@ -1328,7 +1352,6 @@
       return /\.(mp4|webm|ogg|mov|avi)$/i.test(url);
     }
 
-    // Прокрутка вниз и кнопка
     messagesDiv.addEventListener('scroll', checkScroll);
     scrollDownBtn.addEventListener('click', () => {
       messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: 'smooth' });
@@ -1340,13 +1363,12 @@
       scrollDownBtn.style.display = atBottom ? 'none' : 'flex';
     }
 
-    // Звуки (без изменений)
     function playNotificationSound() { playBeep(800, 0.2, 0.1); }
     function playActiveChatSound() { playBeep(600, 0.1, 0.05); }
     function playSelfSendSound() { playBeep(600, 0.1, 0.05); }
 
     function playBeep(freq, gainValue, duration) {
-      // ... (как в оригинале)
+      // ... (без изменений)
     }
 
     window.addEventListener('load', loadFromStorage);
