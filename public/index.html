@@ -392,7 +392,6 @@
       font-style: italic;
     }
 
-    /* Кнопка ответа для своих сообщений (слева вверху) */
     .own-reply-btn {
       position: absolute;
       top: 2px;
@@ -411,7 +410,6 @@
       background: rgba(255,140,0,0.3);
     }
 
-    /* Кнопки редактирования/удаления для своих сообщений (слева, по центру) */
     .own-edit-delete {
       position: absolute;
       left: -30px;
@@ -436,7 +434,6 @@
       background: rgba(255,140,0,0.3);
     }
 
-    /* Кнопка ответа для чужих сообщений (справа вверху) */
     .other-reply-btn {
       position: absolute;
       top: 2px;
@@ -799,6 +796,7 @@
     let editingMessageId = null;
     let lastSeenTimer = null;
 
+    // Загрузка из localStorage
     function loadFromStorage() {
       const savedName = localStorage.getItem('userName');
       const savedId = localStorage.getItem('userId');
@@ -894,6 +892,7 @@
       if (data.userId === currentUser?.id) { alert(data.message); location.reload(); }
     });
 
+    // Подписка на push-уведомления
     async function subscribeToPush() {
       if (pushSubscriptionAttempted) return;
       pushSubscriptionAttempted = true;
@@ -954,6 +953,7 @@
       }
     }
 
+    // Обновление списка онлайн
     socket.on('user list', (online) => {
       onlineUsers = online;
       buildChatList();
@@ -1155,10 +1155,12 @@
       typingTimer = setTimeout(() => { socket.emit('stop typing', { to: selectedUser.id }); }, 2000);
     });
 
+    // ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОТПРАВКИ ==========
     function sendMessage() {
       const text = messageInput.value.trim();
       if (!text && !selectedFile && !isEditing) return;
 
+      // Режим редактирования
       if (isEditing) {
         socket.emit('edit message', {
           messageId: editingMessageId,
@@ -1174,10 +1176,13 @@
         return;
       }
 
+      // Отправка файла
       if (selectedFile) {
-        // Сохраняем данные для отправки
+        // Сохраняем все необходимые данные ДО очистки
         const fileToSend = selectedFile;
         const replyToCopy = replyToMessage ? { ...replyToMessage } : null;
+        const textToSend = text;
+        const targetUserId = selectedUser.id;
 
         // Немедленно убираем превью
         cancelReply();
@@ -1207,8 +1212,8 @@
               originalname: data.originalname
             };
             socket.emit('private message', {
-              to: selectedUser.id,
-              text: text,
+              to: targetUserId,
+              text: textToSend,
               fileInfo: fileInfo,
               replyTo: replyToCopy
             });
@@ -1248,6 +1253,7 @@
 
     sendBtn.addEventListener('click', sendMessage);
 
+    // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
     function startEdit(messageId, currentText) {
       isEditing = true;
       editingMessageId = messageId;
@@ -1314,6 +1320,7 @@
 
     cancelFileBtn.addEventListener('click', cancelFile);
 
+    // ========== ОБРАБОТЧИКИ СОБЫТИЙ ОТ СЕРВЕРА ==========
     socket.on('private message', (msg) => {
       const isOwn = msg.from === currentUser.id;
       const peerId = isOwn ? msg.to : msg.from;
@@ -1400,6 +1407,7 @@
       if (selectedUser && selectedUser.id === from) typingIndicatorHeader.textContent = '';
     });
 
+    // ========== ОТОБРАЖЕНИЕ СООБЩЕНИЯ ==========
     function displayMessage(msg) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${msg.isOwn ? 'own' : 'other'}`;
@@ -1538,6 +1546,7 @@
       scrollDownBtn.style.display = atBottom ? 'none' : 'flex';
     }
 
+    // Звуки
     function playNotificationSound() { playBeep(800, 0.2, 0.1); }
     function playActiveChatSound() { playBeep(600, 0.1, 0.05); }
     function playSelfSendSound() { playBeep(600, 0.1, 0.05); }
