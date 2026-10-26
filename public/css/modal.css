@@ -1,0 +1,75 @@
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.8);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+.modal.active {
+  display: flex;
+}
+.modal-content {
+  background: #1e1e1e;
+  padding: 2rem;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+  color: #fff;
+}
+.modal-content h3 {
+  margin-bottom: 1rem;
+  color: #ff8c00;
+}
+.modal-content input {
+  width: 100%;
+  padding: 0.8rem;
+  margin: 0.5rem 0;
+  border: 1px solid #444;
+  border-radius: 30px;
+  background: #2a2a2a;
+  color: #fff;
+}
+.modal-content .user-select {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+.modal-content .user-select label {
+  display: block;
+  padding: 0.3rem;
+  cursor: pointer;
+}
+.modal-content .user-select input {
+  width: auto;
+  margin-right: 10px;
+}
+.modal-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 1rem;
+}
+.modal-buttons button {
+  flex: 1;
+  padding: 0.8rem;
+  border: none;
+  border-radius: 30px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.modal-buttons .create {
+  background: #ff8c00;
+  color: #121212;
+}
+.modal-buttons .cancel {
+  background: #444;
+  color: #fff;
+}

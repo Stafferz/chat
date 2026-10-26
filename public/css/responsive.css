@@ -1,0 +1,23 @@
+@media (max-width: 768px) {
+  .sidebar { width: 100%; height: 100%; border-right: none; }
+  .main {
+    width: 100%; height: 100%;
+    position: absolute; top: 0; left: 0;
+    background: #121212;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    z-index: 10;
+  }
+  .main.active { transform: translateX(0); }
+  #back-btn { display: inline-block; }
+  #chat-list li { padding: 1rem; font-size: 1.2rem; }
+  .notification-badge { min-width: 28px; height: 28px; font-size: 1rem; }
+  #chat-header { flex-wrap: nowrap; padding: 0.5rem; font-size: 1rem; flex-shrink: 0; }
+  #chat-title { font-size: 1rem; }
+  #typing-indicator-header { font-size: 0.8rem; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
+  #clear-chat-btn { font-size: 0.7rem; padding: 0.1rem 0.4rem; }
+  .input-area { flex-wrap: wrap; padding: 0.3rem; flex-shrink: 0; }
+  #message-input { flex: 1 1 auto; min-width: 120px; font-size: 0.9rem; }
+  .file-upload-label, #send-btn { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
+  .file-preview, .reply-preview { width: 100%; order: -1; margin-bottom: 4px; }
+}
