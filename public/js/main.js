@@ -5,7 +5,7 @@ import { initSocket } from './socket.js';
 import { initHandlers } from './handlers.js';
 import { initGroups } from './groups.js';
 import { initUpload } from './upload.js';
-import { updateCurrentUserNick, adjustMessagesHeight, updateScrollButtonPosition, closeChat, sendMessage, cancelReply, cancelFile } from './ui.js';
+import { updateCurrentUserNick, adjustMessagesHeight, updateScrollButtonPosition, closeChat, cancelReply, cancelFile } from './ui.js';
 import { playSelfSendSound } from './sounds.js';
 
 export function sendMessage() {
