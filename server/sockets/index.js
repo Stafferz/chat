@@ -7,14 +7,6 @@ function registerSockets(io) {
   io.on('connection', (socket) => {
     console.log('Новое подключение:', socket.id);
     
-    // Handle the join event - when a user joins the chat
-    socket.on('join', (user) => {
-      console.log('Пользователь вошел:', user);
-      // Emit the joined event to the client - transform userId to id
-      const userResponse = { name: user.name, id: user.userId || user.id };
-      socket.emit('joined', userResponse);
-    });
-    
     registerPresence(io, socket);
     registerPrivate(io, socket);
     registerGroups(io, socket);
