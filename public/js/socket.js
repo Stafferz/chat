@@ -9,20 +9,29 @@ export function initSocket() {
   const socket = io();
   window._socket = socket;
 
+  socket.on('connect', () => console.log('Socket connected:', socket.id));
+  socket.on('connect_error', (err) => console.error('Socket connect error:', err));
+  socket.on('disconnect', (reason) => console.log('Socket disconnected:', reason));
+
   dom.joinBtn.addEventListener('click', () => {
+    console.log('Join button clicked');
     const name = dom.nameInput.value.trim();
+    console.log('Name:', name, 'trimmed:', name ? 'not empty' : 'EMPTY');
     if (!name) return;
     let userId = localStorage.getItem('userId');
     if (!userId) { userId = generateClientId(); localStorage.setItem('userId', userId); }
+    console.log('Emitting join:', { name, userId }, 'socket connected?', socket.connected);
     socket.emit('join', { name, userId });
+    console.log('Join emitted');
     if (!state.audioContext) state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
   });
 
   dom.nameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') dom.joinBtn.click(); });
 
-  socket.on('joinError', (msg) => { dom.errorDiv.textContent = msg; if (state.currentUser) { localStorage.removeItem('userName'); localStorage.removeItem('userId'); location.reload(); } });
+  socket.on('joinError', (msg) => { console.error('joinError:', msg); dom.errorDiv.textContent = msg; if (state.currentUser) { localStorage.removeItem('userName'); localStorage.removeItem('userId'); location.reload(); } });
 
   socket.on('joined', (user) => {
+    console.log('Received joined event:', user);
     state.currentUser = user;
     localStorage.setItem('userName', user.name);
     localStorage.setItem('userId', user.id);
