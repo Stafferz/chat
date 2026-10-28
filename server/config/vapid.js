@@ -1,8 +1,11 @@
 const webPush = require('web-push');
 
+let vapidPublicKey = null;
+let vapidPrivateKey = null;
+
 function initVapid() {
-  let vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
-  let vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+  vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+  vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
   if (!vapidPublicKey || !vapidPrivateKey) {
     const vapidKeys = webPush.generateVAPIDKeys();
     vapidPublicKey = vapidPublicKey || vapidKeys.publicKey;
@@ -16,4 +19,8 @@ function initVapid() {
   return webPush;
 }
 
-module.exports = { initVapid };
+function getPublicKey() {
+  return vapidPublicKey || process.env.VAPID_PUBLIC_KEY || 'BK0ZuTTtvnwKTDxfjMrMTeYWoAejPX_J6PIHPMwvx6b5J3V3LuM8MV91d1wbb_kDj7huTVQgryycEgzCTIKdcNk';
+}
+
+module.exports = { initVapid, getPublicKey };

@@ -1,5 +1,6 @@
 const store = require('../store');
 const { generateId } = require('../utils/id');
+const { sendNotification } = require('./notifications');
 
 function registerPrivate(io, socket) {
   socket.on('private message', ({ to, text, imageUrl, replyTo, fileInfo }) => {
@@ -28,6 +29,9 @@ function registerPrivate(io, socket) {
       store.offlineMessages.get(to).push(message);
     }
     socket.emit('private message', message);
+    if (fromUser.id !== to) {
+      sendNotification(to, { title: fromUser.name + ': ' + (text || '').substring(0, 50), body: text || 'new message', url: '/' });
+    }
   });
 
   socket.on('edit message', ({ messageId, newText, peerId }) => {

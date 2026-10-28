@@ -92,10 +92,8 @@ export function sendMessage() {
 }
 
 export function init() {
-  console.log('init() called');
   // Load saved
   const saved = loadFromStorage();
-  console.log('Saved state:', saved);
   if (saved.hasSaved) {
     state.currentUser = { id: saved.id, name: saved.name };
     dom.nameInput.value = saved.name;

@@ -1,5 +1,6 @@
 const store = require('../store');
 const { generateId } = require('../utils/id');
+const { sendNotification } = require('./notifications');
 
 function registerGroups(io, socket) {
   socket.on('create group', ({ name, members }) => {
@@ -66,6 +67,11 @@ function registerGroups(io, socket) {
     });
 
     socket.emit('group message', message);
+
+    group.members.forEach(memberId => {
+      if (memberId === fromUser.id) return;
+      sendNotification(memberId, { title: (group.name || 'Группа') + ': ' + fromUser.name, body: text || 'new message', url: '/' });
+    });
   });
 
   socket.on('edit group message', ({ messageId, newText, groupId }) => {
