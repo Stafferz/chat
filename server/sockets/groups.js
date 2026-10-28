@@ -70,7 +70,7 @@ function registerGroups(io, socket) {
 
     group.members.forEach(memberId => {
       if (memberId === fromUser.id) return;
-      sendNotification(memberId, { title: (group.name || 'Группа') + ': ' + fromUser.name, body: text || 'new message', url: '/' });
+      sendNotification(memberId, { title: (group.name || 'Группа') + ': ' + fromUser.name, body: text || 'new message', url: '/' }, io);
     });
   });
 

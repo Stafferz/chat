@@ -30,7 +30,7 @@ function registerPrivate(io, socket) {
     }
     socket.emit('private message', message);
     if (fromUser.id !== to) {
-      sendNotification(to, { title: fromUser.name + ': ' + (text || '').substring(0, 50), body: text || 'new message', url: '/' });
+      sendNotification(to, { title: fromUser.name + ': ' + (text || '').substring(0, 50), body: text || 'new message', url: '/' }, io);
     }
   });
 

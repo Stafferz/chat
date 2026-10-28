@@ -8,6 +8,7 @@ export function initHandlers(socket) {
   socket.on('private message', (msg) => {
     const isOwn = msg.from === state.currentUser.id;
     const peerId = isOwn ? msg.to : msg.from;
+    if (state.chatHistory[msg.from]) state.chatHistory[msg.from].isTyping = false;
     const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     if (!state.chatHistory[peerId]) state.chatHistory[peerId] = { messages: [], peerName: null, isTyping: false };
     const message = { id: msg.id, fromName: msg.fromName, text: msg.text, imageUrl: msg.imageUrl, fileInfo: msg.fileInfo, replyTo: msg.replyTo, isOwn, read: isOwn, time, timestamp: msg.timestamp, edited: msg.edited || false };
