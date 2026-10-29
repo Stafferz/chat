@@ -119,7 +119,7 @@ export function init() {
 
   dom.changeNickBtn.addEventListener('click', clearStorageAndRelogin);
   dom.backBtn.addEventListener('click', closeChat);
-  dom.sendBtn.addEventListener('click', () => { dom.messageInput.focus(); sendMessage(); });
+  dom.sendBtn.addEventListener('click', () => { dom.messageInput.focus(); sendMessage(); setTimeout(() => { dom.messageInput.value = ''; dom.messageInput.style.height = 'auto'; }, 400); });
   dom.cancelReplyBtn.addEventListener('click', cancelReply);
   dom.clearChatBtn.addEventListener('click', () => {
     if (!state.selectedChat) return;

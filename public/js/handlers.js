@@ -20,10 +20,13 @@ export function initHandlers(socket) {
       if (isActiveChat) playActiveChatSound(); else playNotificationSound();
     }
     if (isActiveChat) {
-      const wasAtBottom = dom.messagesDiv.scrollHeight - dom.messagesDiv.scrollTop - dom.messagesDiv.clientHeight < 50;
+      const wasAtBottom = dom.messagesDiv.scrollHeight - dom.messagesDiv.scrollTop - dom.messagesDiv.clientHeight < 60;
       loadChatHistory(state.selectedChat);
       if (!isOwn) message.read = true;
-      if (wasAtBottom) setTimeout(() => dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight, 50);
+      if (wasAtBottom) {
+        setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 100);
+        setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 300);
+      }
     }
     buildChatList();
   });
@@ -41,9 +44,12 @@ export function initHandlers(socket) {
       if (isActiveChat) playActiveChatSound(); else playNotificationSound();
     }
     if (isActiveChat) {
-      const wasAtBottom = dom.messagesDiv.scrollHeight - dom.messagesDiv.scrollTop - dom.messagesDiv.clientHeight < 50;
+      const wasAtBottom = dom.messagesDiv.scrollHeight - dom.messagesDiv.scrollTop - dom.messagesDiv.clientHeight < 60;
       loadChatHistory(state.selectedChat);
-      if (wasAtBottom) setTimeout(() => dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight, 50);
+      if (wasAtBottom) {
+        setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 100);
+        setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 300);
+      }
     }
     buildChatList();
   });
