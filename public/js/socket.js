@@ -14,6 +14,7 @@ export function initSocket() {
   dom.joinBtn.addEventListener('click', () => {
     const name = dom.nameInput.value.trim();
     if (!name) return;
+    if (name.length > 15) { dom.errorDiv.textContent = 'Имя слишком длинное (макс. 15 символов)'; return; }
     let userId = localStorage.getItem('userId');
     if (!userId) { userId = generateClientId(); localStorage.setItem('userId', userId); }
     socket.emit('join', { name, userId });

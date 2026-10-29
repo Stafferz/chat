@@ -4,6 +4,7 @@ const { generateId } = require('../utils/id');
 function registerPresence(io, socket) {
   socket.on('join', ({ name, userId }) => {
     if (!userId) userId = generateId();
+    if (name && name.length > 15) { socket.emit('joinError', 'Имя слишком длинное (макс. 15 символов)'); return; }
 
     if (store.users.has(userId)) {
       const existing = store.users.get(userId);

@@ -6,7 +6,7 @@ import { initHandlers } from './handlers.js';
 import { initGroups } from './groups.js';
 import { initUpload } from './upload.js';
 import { updateCurrentUserNick, adjustMessagesHeight, updateScrollButtonPosition, closeChat, cancelReply, cancelFile } from './ui.js';
-import { playSelfSendSound } from './sounds.js';
+import { initMessageNavigation, setupMessageClickNavigation } from './message-navigation.js';
 
 export function sendMessage() {
   if (!state.selectedChat) return;
@@ -66,7 +66,7 @@ export function sendMessage() {
       dom.messageInput.value = '';
       dom.messageInput.style.height = 'auto';
       setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 200);
-      setTimeout(() => dom.messageInput.focus(), 300);
+      dom.messageInput.focus();
     };
     xhr.onerror = () => {
       alert('Ошибка сети');
@@ -114,6 +114,8 @@ export function init() {
   initHandlers(socket);
   initGroups(socket);
   initUpload(socket);
+  initMessageNavigation();
+  setupMessageClickNavigation();
 
   dom.changeNickBtn.addEventListener('click', clearStorageAndRelogin);
   dom.backBtn.addEventListener('click', closeChat);
@@ -133,7 +135,23 @@ export function init() {
   });
 
   dom.messageInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    if (e.key === 'Enter') {
+      if (e.shiftKey || e.ctrlKey || e.metaKey) {
+        // Shift/Ctrl/Cmd + Enter sends the message (desktop)
+        e.preventDefault();
+        sendMessage();
+      } else {
+        // Enter alone inserts a new line (Telegram-style on mobile & desktop)
+        e.preventDefault();
+        const start = dom.messageInput.selectionStart;
+        const end = dom.messageInput.selectionEnd;
+        dom.messageInput.value = dom.messageInput.value.substring(0, start) + '\n' + dom.messageInput.value.substring(end);
+        dom.messageInput.selectionStart = dom.messageInput.selectionEnd = start + 1;
+        dom.messageInput.style.height = 'auto';
+        dom.messageInput.style.height = dom.messageInput.scrollHeight + 'px';
+        dom.messageInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      }
+    }
   });
   dom.messageInput.addEventListener('input', function() {
     this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';
@@ -148,6 +166,9 @@ export function init() {
   }
   window.addEventListener('resize', () => { adjustMessagesHeight(); updateScrollButtonPosition(); if (window.innerWidth > 768) dom.chatMain.classList.remove('active'); else if (state.selectedChat) dom.chatMain.classList.add('active'); else dom.chatMain.classList.remove('active'); });
   dom.messageInput.addEventListener('focus', () => { setTimeout(() => { adjustMessagesHeight(); updateScrollButtonPosition(); }, 300); });
+
+  // Blur keyboard when clicking in chat area (but keep when sending)
+  dom.messagesDiv.addEventListener('click', () => { if (document.activeElement === dom.messageInput) { dom.messageInput.blur(); } });
 
   dom.scrollDownBtn.addEventListener('click', () => { dom.messagesDiv.scrollTo({ top: dom.messagesDiv.scrollHeight, behavior: 'smooth' }); });
   dom.messagesDiv.addEventListener('scroll', () => {

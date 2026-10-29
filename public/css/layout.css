@@ -20,7 +20,7 @@
   flex-direction: column;
   background: #121212;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   height: 100%;
 }
 
@@ -79,12 +79,15 @@
 }
 
 #typing-indicator-header {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #ff8c00;
   font-style: italic;
   white-space: nowrap;
   flex-shrink: 0;
-  max-width: 200px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  width: 100%;
+  order: 3;
+  margin-top: 2px;
 }

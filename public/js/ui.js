@@ -16,6 +16,13 @@ export function adjustMessagesHeight() {
   const header = document.getElementById('chat-header');
   const inputArea = document.querySelector('.input-area');
   if (!header || !inputArea) return;
+  // На мобильных поле ввода зафиксировано position:fixed, #messages растягивается через flex,
+  // поэтому не задаём ему явно высоту в пикселях.
+  if (window.innerWidth <= 768) {
+    dom.messagesDiv.style.height = '';
+    dom.messagesDiv.style.minHeight = '';
+    return;
+  }
   const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
   const headerHeight = header.getBoundingClientRect().height;
   const inputHeight = inputArea.getBoundingClientRect().height;
