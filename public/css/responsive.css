@@ -1,11 +1,12 @@
 @media (max-width: 768px) {
-  .sidebar { width: 100%; height: 100%; border-right: none; display: none; }
-  .sidebar.active { display: block; }
+  .sidebar { width: 100%; height: 100%; border-right: none; display: block; }
   .main {
     width: 100%; height: 100%;
+    position: absolute; top: 0; left: 0;
     background: #121212;
     display: none;
     flex-direction: column;
+    z-index: 10;
   }
   .main.active { display: flex; }
   #back-btn { display: inline-block; }
