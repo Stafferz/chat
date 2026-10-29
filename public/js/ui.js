@@ -13,25 +13,21 @@ export function updateCurrentUserNick() {
 
 export function adjustMessagesHeight() {
   if (!state.selectedChat) return;
+  // На мобильных высота #chat синхронизируется с visualViewport,
+  // а сообщения занимают свободное место через flex.
+  if (window.innerWidth <= 768) {
+    dom.messagesDiv.style.height = '';
+    dom.messagesDiv.style.minHeight = '0';
+    return;
+  }
   const header = document.getElementById('chat-header');
   const inputArea = document.querySelector('.input-area');
   if (!header || !inputArea) return;
-  // На мобильных поле ввода зафиксировано position:fixed, #messages растягивается через flex,
-  // поэтому не задаём ему явно высоту в пикселях.
-  if (window.innerWidth <= 768) {
-    dom.messagesDiv.style.height = '';
-    dom.messagesDiv.style.minHeight = '';
-    return;
-  }
   const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
   const headerHeight = header.getBoundingClientRect().height;
   const inputHeight = inputArea.getBoundingClientRect().height;
   const availableHeight = viewportHeight - headerHeight - inputHeight;
-  if (availableHeight > 0) {
-    dom.messagesDiv.style.height = availableHeight + 'px';
-  } else {
-    dom.messagesDiv.style.height = '100px';
-  }
+  dom.messagesDiv.style.height = availableHeight > 0 ? availableHeight + 'px' : '100px';
 }
 
 export function updateScrollButtonPosition() {

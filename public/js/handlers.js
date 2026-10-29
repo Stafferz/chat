@@ -4,6 +4,15 @@ import { buildChatList, loadChatHistory, updateChatTitle } from './ui.js';
 import { playNotificationSound, playActiveChatSound } from './sounds.js';
 import { saveToStorage } from './storage.js';
 
+function scrollToBottomAfterLayout() {
+  const scroll = () => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; };
+  requestAnimationFrame(() => {
+    scroll();
+    requestAnimationFrame(scroll);
+  });
+  setTimeout(scroll, 180);
+}
+
 export function initHandlers(socket) {
   socket.on('private message', (msg) => {
     const isOwn = msg.from === state.currentUser.id;
@@ -20,13 +29,10 @@ export function initHandlers(socket) {
       if (isActiveChat) playActiveChatSound(); else playNotificationSound();
     }
     if (isActiveChat) {
-      const wasAtBottom = dom.messagesDiv.scrollHeight - dom.messagesDiv.scrollTop - dom.messagesDiv.clientHeight < 60;
+      const wasAtBottom = dom.messagesDiv.scrollHeight - dom.messagesDiv.scrollTop - dom.messagesDiv.clientHeight < 80;
       loadChatHistory(state.selectedChat);
       if (!isOwn) message.read = true;
-      if (wasAtBottom) {
-        setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 100);
-        setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 300);
-      }
+      if (isOwn || wasAtBottom) scrollToBottomAfterLayout();
     }
     buildChatList();
   });
@@ -44,12 +50,9 @@ export function initHandlers(socket) {
       if (isActiveChat) playActiveChatSound(); else playNotificationSound();
     }
     if (isActiveChat) {
-      const wasAtBottom = dom.messagesDiv.scrollHeight - dom.messagesDiv.scrollTop - dom.messagesDiv.clientHeight < 60;
+      const wasAtBottom = dom.messagesDiv.scrollHeight - dom.messagesDiv.scrollTop - dom.messagesDiv.clientHeight < 80;
       loadChatHistory(state.selectedChat);
-      if (wasAtBottom) {
-        setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 100);
-        setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 300);
-      }
+      if (isOwn || wasAtBottom) scrollToBottomAfterLayout();
     }
     buildChatList();
   });

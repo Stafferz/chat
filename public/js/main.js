@@ -7,6 +7,7 @@ import { initGroups } from './groups.js';
 import { initUpload } from './upload.js';
 import { updateCurrentUserNick, adjustMessagesHeight, updateScrollButtonPosition, closeChat, cancelReply, cancelFile } from './ui.js';
 import { initMessageNavigation, setupMessageClickNavigation } from './message-navigation.js';
+import { playSelfSendSound } from './sounds.js';
 
 export function sendMessage() {
   if (!state.selectedChat) return;
@@ -38,57 +39,74 @@ export function sendMessage() {
     const isGroup = state.selectedChat.isGroup;
     cancelReply();
     cancelFile();
+
     const formData = new FormData();
     formData.append('file', fileToSend);
-    const originalText = dom.sendBtn.textContent;
+    const resetSendButton = () => {
+      dom.sendBtn.textContent = 'Отправить';
+      dom.sendBtn.disabled = false;
+    };
     dom.sendBtn.textContent = '0%';
     dom.sendBtn.disabled = true;
+    dom.messageInput.value = '';
+    dom.messageInput.style.height = 'auto';
+
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/upload', true);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) dom.sendBtn.textContent = Math.round((e.loaded / e.total) * 100) + '%';
     };
     xhr.onload = () => {
-      if (xhr.status === 200) {
+      try {
+        if (xhr.status !== 200) throw new Error('Upload failed: ' + xhr.status);
         const data = JSON.parse(xhr.responseText);
         const fileInfo = { url: data.url, mimetype: data.mimetype, originalname: data.originalname };
         if (isGroup) {
-          socket.emit('group message', { groupId: targetId, text: textToSend, fileInfo: fileInfo, replyTo: replyToCopy });
+          socket.emit('group message', { groupId: targetId, text: textToSend, fileInfo, replyTo: replyToCopy });
         } else {
-          socket.emit('private message', { to: targetId, text: textToSend, fileInfo: fileInfo, replyTo: replyToCopy });
+          socket.emit('private message', { to: targetId, text: textToSend, fileInfo, replyTo: replyToCopy });
         }
         playSelfSendSound();
-      } else {
-        alert('Ошибка загрузки');
+        scrollMessagesToBottom();
+      } catch (err) {
+        console.error('Ошибка отправки файла:', err);
+        alert('Не удалось загрузить или отправить файл');
+      } finally {
+        resetSendButton();
+        dom.messageInput.value = '';
+        dom.messageInput.style.height = 'auto';
       }
-      dom.sendBtn.textContent = 'Отправить';
-      dom.sendBtn.disabled = false;
-      dom.messageInput.value = '';
-      dom.messageInput.style.height = 'auto';
-      setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 200);
-      setTimeout(() => { dom.messageInput.focus(); dom.messageInput.value = ''; dom.messageInput.style.height = 'auto'; }, 300);
     };
     xhr.onerror = () => {
-      alert('Ошибка сети');
-      dom.sendBtn.textContent = 'Отправить';
-      dom.sendBtn.disabled = false;
-      setTimeout(() => dom.messageInput.focus(), 300);
+      resetSendButton();
+      alert('Ошибка сети при загрузке файла');
     };
+    xhr.onabort = resetSendButton;
     xhr.send(formData);
   } else {
     const replyToCopy = state.replyToMessage ? { id: state.replyToMessage.id, text: state.replyToMessage.text, fromName: state.replyToMessage.fromName } : null;
     cancelReply();
     if (state.selectedChat.isGroup) {
-      socket.emit('group message', { groupId: state.selectedChat.id, text: text, replyTo: replyToCopy });
+      socket.emit('group message', { groupId: state.selectedChat.id, text, replyTo: replyToCopy });
     } else {
-      socket.emit('private message', { to: state.selectedChat.id, text: text, replyTo: replyToCopy });
+      socket.emit('private message', { to: state.selectedChat.id, text, replyTo: replyToCopy });
     }
     playSelfSendSound();
     dom.messageInput.value = '';
     dom.messageInput.style.height = 'auto';
-    setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 200);
-    setTimeout(() => { dom.messageInput.focus(); dom.messageInput.value = ''; dom.messageInput.style.height = 'auto'; }, 300);
+    scrollMessagesToBottom();
   }
+}
+
+function scrollMessagesToBottom() {
+  const scroll = () => {
+    dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight;
+  };
+  requestAnimationFrame(() => {
+    scroll();
+    requestAnimationFrame(scroll);
+  });
+  setTimeout(scroll, 150);
 }
 
 export function init() {
@@ -119,7 +137,7 @@ export function init() {
 
   dom.changeNickBtn.addEventListener('click', clearStorageAndRelogin);
   dom.backBtn.addEventListener('click', closeChat);
-  dom.sendBtn.addEventListener('click', () => { dom.messageInput.focus(); sendMessage(); setTimeout(() => { dom.messageInput.value = ''; dom.messageInput.style.height = 'auto'; }, 400); });
+  dom.sendBtn.addEventListener('click', () => { sendMessage(); });
   dom.cancelReplyBtn.addEventListener('click', cancelReply);
   dom.clearChatBtn.addEventListener('click', () => {
     if (!state.selectedChat) return;
@@ -161,11 +179,40 @@ export function init() {
     state.typingTimer = setTimeout(() => { socket.emit('stop typing', { to: state.selectedChat.id }); }, 2000);
   });
 
+  const updateViewport = () => {
+    const wasAtBottom = dom.messagesDiv.scrollHeight - dom.messagesDiv.scrollTop - dom.messagesDiv.clientHeight < 80;
+    if (window.visualViewport && window.innerWidth <= 768) {
+      const viewport = window.visualViewport;
+      document.documentElement.style.setProperty('--chat-viewport-height', `${viewport.height}px`);
+      document.documentElement.style.setProperty('--chat-viewport-top', `${viewport.offsetTop}px`);
+    } else {
+      document.documentElement.style.setProperty('--chat-viewport-height', `${window.innerHeight}px`);
+      document.documentElement.style.setProperty('--chat-viewport-top', '0px');
+    }
+    adjustMessagesHeight();
+    updateScrollButtonPosition();
+    if (wasAtBottom && state.selectedChat) {
+      requestAnimationFrame(() => {
+        dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight;
+        requestAnimationFrame(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; });
+      });
+    }
+  };
   if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', () => { adjustMessagesHeight(); updateScrollButtonPosition(); });
+    window.visualViewport.addEventListener('resize', updateViewport);
+    window.visualViewport.addEventListener('scroll', updateViewport);
   }
-  window.addEventListener('resize', () => { adjustMessagesHeight(); updateScrollButtonPosition(); if (window.innerWidth > 768) dom.chatMain.classList.remove('active'); else if (state.selectedChat) dom.chatMain.classList.add('active'); else dom.chatMain.classList.remove('active'); });
-  dom.messageInput.addEventListener('focus', () => { setTimeout(() => { adjustMessagesHeight(); updateScrollButtonPosition(); }, 300); });
+  window.addEventListener('resize', () => {
+    updateViewport();
+    if (window.innerWidth > 768) dom.chatMain.classList.remove('active');
+    else if (state.selectedChat) dom.chatMain.classList.add('active');
+    else dom.chatMain.classList.remove('active');
+  });
+  dom.messageInput.addEventListener('focus', () => {
+    setTimeout(() => { updateViewport(); }, 100);
+    setTimeout(() => { updateViewport(); }, 350);
+  });
+  dom.messageInput.addEventListener('blur', () => setTimeout(updateViewport, 100));
 
   // Blur keyboard when clicking in chat area (but keep when sending)
   dom.messagesDiv.addEventListener('click', () => { if (document.activeElement === dom.messageInput) { dom.messageInput.blur(); } });
