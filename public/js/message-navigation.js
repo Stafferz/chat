@@ -5,15 +5,26 @@ import { dom } from './dom.js';
 export function initMessageNavigation() {
   if (dom.messagesDiv) {
     dom.messagesDiv.addEventListener('click', (e) => {
+      const replyContext = e.target.closest('.reply-context');
+      if (replyContext && replyContext.dataset.replyToId) {
+        e.stopPropagation();
+        const original = dom.messagesDiv.querySelector(`[data-message-id="${replyContext.dataset.replyToId}"]`);
+        if (original) {
+          original.style.outline = '2px solid #ff8c00';
+          setTimeout(() => original.style.outline = '', 500);
+          const msgTop = original.offsetTop - 20;
+          dom.messagesDiv.scrollTop = msgTop;
+          original.style.backgroundColor = 'rgba(255, 140, 0, 0.2)';
+          setTimeout(() => original.style.backgroundColor = '', 1500);
+        }
+        return;
+      }
       const target = e.target.closest('.message');
       if (target && target.dataset.messageId) {
-        // Show a subtle indication that we're jumping to that message
         target.style.outline = '2px solid #ff8c00';
         setTimeout(() => target.style.outline = '', 500);
-        // Scroll to the message
         const msgTop = target.offsetTop - 20;
         dom.messagesDiv.scrollTop = msgTop;
-        // Show temporary highlight effect
         target.style.backgroundColor = 'rgba(255, 140, 0, 0.2)';
         setTimeout(() => target.style.backgroundColor = '', 1500);
       }
@@ -22,19 +33,14 @@ export function initMessageNavigation() {
 }
 
 export function setupMessageClickNavigation() {
-  // Add a visual hint that messages are clickable
   if (dom.messagesDiv) {
     dom.messagesDiv.addEventListener('mouseenter', (e) => {
       const target = e.target.closest('.message');
-      if (target) {
-        target.style.cursor = 'pointer';
-      }
+      if (target) target.style.cursor = 'pointer';
     });
     dom.messagesDiv.addEventListener('mouseleave', (e) => {
       const target = e.target.closest('.message');
-      if (target) {
-        target.style.cursor = 'default';
-      }
+      if (target) target.style.cursor = 'default';
     });
   }
 }

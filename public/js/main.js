@@ -61,7 +61,7 @@ export function sendMessage() {
       } else {
         alert('Ошибка загрузки');
       }
-      dom.sendBtn.textContent = originalText;
+      dom.sendBtn.textContent = 'Отправить';
       dom.sendBtn.disabled = false;
       dom.messageInput.value = '';
       dom.messageInput.style.height = 'auto';
@@ -70,7 +70,7 @@ export function sendMessage() {
     };
     xhr.onerror = () => {
       alert('Ошибка сети');
-      dom.sendBtn.textContent = originalText;
+      dom.sendBtn.textContent = 'Отправить';
       dom.sendBtn.disabled = false;
       setTimeout(() => dom.messageInput.focus(), 300);
     };
@@ -119,7 +119,7 @@ export function init() {
 
   dom.changeNickBtn.addEventListener('click', clearStorageAndRelogin);
   dom.backBtn.addEventListener('click', closeChat);
-  dom.sendBtn.addEventListener('click', sendMessage);
+  dom.sendBtn.addEventListener('click', () => { dom.messageInput.focus(); sendMessage(); });
   dom.cancelReplyBtn.addEventListener('click', cancelReply);
   dom.clearChatBtn.addEventListener('click', () => {
     if (!state.selectedChat) return;

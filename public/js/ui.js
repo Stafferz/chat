@@ -312,6 +312,7 @@ export function displayMessage(msg, isGroup) {
   if (msg.replyTo) {
     const replyDiv = document.createElement('div');
     replyDiv.className = 'reply-context';
+    replyDiv.dataset.replyToId = msg.replyTo.id;
     const replyText = msg.replyTo.text || '...';
     replyDiv.textContent = `↩️ ${msg.replyTo.fromName}: ${replyText.substring(0, 30)}${replyText.length > 30 ? '…' : ''}`;
     messageDiv.appendChild(replyDiv);
