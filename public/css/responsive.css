@@ -7,12 +7,13 @@
     display: none;
     flex-direction: column;
     z-index: 10;
+    overflow: hidden;
   }
   .main.active { display: flex; }
   #back-btn { display: inline-block; }
   #chat-list li { padding: 1rem; font-size: 1.2rem; }
   .notification-badge { min-width: 28px; height: 28px; font-size: 1rem; }
-  #chat-header { flex-wrap: wrap; padding: 0.5rem; font-size: 1rem; flex-shrink: 0; background: #1e1e1e; border-bottom: 1px solid #333; position: relative; z-index: 200; }
+  #chat-header { flex-wrap: wrap; padding: 0.5rem; font-size: 1rem; flex-shrink: 0; background: #1e1e1e; border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 200; }
   #chat-title { font-size: 1rem; min-width: 80px; }
   #typing-indicator-header { font-size: 0.75rem; width: 100%; order: 3; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #clear-chat-btn { font-size: 0.7rem; padding: 0.1rem 0.4rem; }

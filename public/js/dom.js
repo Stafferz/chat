@@ -9,6 +9,7 @@ export const dom = {
   chatTitle: document.getElementById('chat-title'),
   chatSubtitle: document.getElementById('chat-subtitle'),
   typingIndicatorHeader: document.getElementById('typing-indicator-header'),
+  chatStatus: document.getElementById('chat-status'),
   messagesDiv: document.getElementById('messages'),
   messageInput: document.getElementById('message-input'),
   sendBtn: document.getElementById('send-btn'),

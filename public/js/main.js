@@ -66,7 +66,7 @@ export function sendMessage() {
       dom.messageInput.value = '';
       dom.messageInput.style.height = 'auto';
       setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 200);
-      dom.messageInput.focus();
+      setTimeout(() => { dom.messageInput.focus(); dom.messageInput.value = ''; dom.messageInput.style.height = 'auto'; }, 300);
     };
     xhr.onerror = () => {
       alert('Ошибка сети');
@@ -87,7 +87,7 @@ export function sendMessage() {
     dom.messageInput.value = '';
     dom.messageInput.style.height = 'auto';
     setTimeout(() => { dom.messagesDiv.scrollTop = dom.messagesDiv.scrollHeight; }, 200);
-    setTimeout(() => dom.messageInput.focus(), 300);
+    setTimeout(() => { dom.messageInput.focus(); dom.messageInput.value = ''; dom.messageInput.style.height = 'auto'; }, 300);
   }
 }
 

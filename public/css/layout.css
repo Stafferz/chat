@@ -78,6 +78,19 @@
   flex-shrink: 0;
 }
 
+.status-indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #aaa;
+  margin-left: 6px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.status-indicator.status-online { background: #00ff00; }
+.status-indicator.status-offline { background: #888; }
+
 #typing-indicator-header {
   font-size: 0.85rem;
   color: #ff8c00;
@@ -90,4 +103,5 @@
   width: 100%;
   order: 3;
   margin-top: 2px;
+  display: block;
 }

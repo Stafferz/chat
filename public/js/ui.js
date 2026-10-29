@@ -46,6 +46,12 @@ export function updateScrollButtonPosition() {
 
 export function updateChatTitle() {
   if (!state.selectedChat) return;
+  const isOnline = state.onlineUsers && state.onlineUsers.some(u => u.id === state.selectedChat.id);
+  if (isOnline) {
+    if (dom.chatStatus) { dom.chatStatus.style.display = 'inline-block'; dom.chatStatus.classList.remove('status-offline'); dom.chatStatus.classList.add('status-online'); }
+  } else {
+    if (dom.chatStatus) { dom.chatStatus.style.display = 'none'; dom.chatStatus.classList.remove('status-online'); dom.chatStatus.classList.add('status-offline'); }
+  }
   if (state.selectedChat.isGroup) {
     dom.chatTitle.textContent = state.selectedChat.name;
     dom.chatSubtitle.textContent = `${(state.selectedChat.members||[]).length} участников`;
@@ -282,7 +288,7 @@ export function displayMessage(msg, isGroup) {
   if (msg.isOwn) {
     const replyBtn = document.createElement('button');
     replyBtn.className = 'own-reply-btn'; replyBtn.textContent = '↩️'; replyBtn.title = 'Ответить';
-    replyBtn.addEventListener('click', (e) => { e.stopPropagation(); replyToMsg(msg); });
+    replyBtn.addEventListener('click', (e) => { e.stopPropagation(); replyToMsg(msg); setTimeout(() => dom.messageInput.focus(), 50); });
     messageDiv.appendChild(replyBtn);
 
     const editDeleteDiv = document.createElement('div');
@@ -305,7 +311,7 @@ export function displayMessage(msg, isGroup) {
   } else {
     const replyBtn = document.createElement('button');
     replyBtn.className = 'other-reply-btn'; replyBtn.textContent = '↩️'; replyBtn.title = 'Ответить';
-    replyBtn.addEventListener('click', (e) => { e.stopPropagation(); replyToMsg(msg); });
+    replyBtn.addEventListener('click', (e) => { e.stopPropagation(); replyToMsg(msg); setTimeout(() => dom.messageInput.focus(), 50); });
     messageDiv.appendChild(replyBtn);
   }
 
