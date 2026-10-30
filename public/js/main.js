@@ -137,6 +137,13 @@ export function init() {
 
   dom.changeNickBtn.addEventListener('click', clearStorageAndRelogin);
   dom.backBtn.addEventListener('click', closeChat);
+  // Prevent the send button from taking focus on touch devices.
+  // Keeping focus on the textarea prevents the on-screen keyboard from closing.
+  dom.sendBtn.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch' || e.pointerType === 'pen' || e.pointerType === 'mouse') {
+      e.preventDefault();
+    }
+  });
   dom.sendBtn.addEventListener('click', () => { sendMessage(); });
   dom.cancelReplyBtn.addEventListener('click', cancelReply);
   dom.clearChatBtn.addEventListener('click', () => {
@@ -153,23 +160,20 @@ export function init() {
   });
 
   dom.messageInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      if (e.shiftKey || e.ctrlKey || e.metaKey) {
-        // Shift/Ctrl/Cmd + Enter sends the message (desktop)
-        e.preventDefault();
-        sendMessage();
-      } else {
-        // Enter alone inserts a new line (Telegram-style on mobile & desktop)
-        e.preventDefault();
-        const start = dom.messageInput.selectionStart;
-        const end = dom.messageInput.selectionEnd;
-        dom.messageInput.value = dom.messageInput.value.substring(0, start) + '\n' + dom.messageInput.value.substring(end);
-        dom.messageInput.selectionStart = dom.messageInput.selectionEnd = start + 1;
-        dom.messageInput.style.height = 'auto';
-        dom.messageInput.style.height = dom.messageInput.scrollHeight + 'px';
-        dom.messageInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
-      }
+    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+
+    // Shift+Enter / Ctrl+Enter / Cmd+Enter always insert a newline.
+    if (e.shiftKey || e.ctrlKey || e.metaKey) return;
+
+    // On phones and tablets Enter should insert a newline.
+    // On desktop Enter sends the message.
+    const isMobile = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+    if (!isMobile) {
+      e.preventDefault();
+      sendMessage();
     }
+    // On mobile, leave the event untouched so the textarea inserts a newline
+    // and the virtual keyboard stays in its normal editing mode.
   });
   dom.messageInput.addEventListener('input', function() {
     this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';
