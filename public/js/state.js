@@ -9,7 +9,6 @@ export const state = {
   audioContext: null,
   typingTimer: null,
   pushSubscriptionAttempted: false,
-  pushNotificationsReady: false,
   replyToMessage: null,
   selectedFile: null,
   isEditing: false,

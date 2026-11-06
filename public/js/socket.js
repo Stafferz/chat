@@ -16,31 +16,17 @@ export function initSocket() {
   document.addEventListener('visibilitychange', reportPageVisibility);
   socket.on('connect', reportPageVisibility);
 
-  async function showNotificationTest() {
-    const registration = await navigator.serviceWorker.getRegistration();
-    if (!registration) throw new Error('Service worker is not registered');
-    await registration.showNotification('Уведомления включены', {
-      body: 'Теперь новые сообщения будут отображаться, когда вкладка чата неактивна.',
-      icon: '/icon.png',
-      badge: '/icon.png',
-      tag: 'notifications-enabled'
-    });
-  }
-
   function updateNotificationButton({ subscribed = false, error = false } = {}) {
     if (!dom.notificationBtn) return;
     const supported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
-    if (!supported) {
+    if (!supported || subscribed) {
       dom.notificationBtn.style.display = 'none';
       return;
     }
 
     dom.notificationBtn.style.display = 'inline-block';
     dom.notificationBtn.disabled = false;
-    if (subscribed) {
-      dom.notificationBtn.textContent = '✅';
-      dom.notificationBtn.title = 'Уведомления включены — нажмите для проверки';
-    } else if (Notification.permission === 'denied') {
+    if (Notification.permission === 'denied') {
       dom.notificationBtn.textContent = '🔕';
       dom.notificationBtn.title = 'Уведомления заблокированы в настройках браузера';
     } else if (error) {
@@ -57,15 +43,6 @@ export function initSocket() {
   dom.notificationBtn?.addEventListener('click', async () => {
     if (Notification.permission === 'denied') {
       alert('Уведомления заблокированы. Разрешите их в настройках сайта в браузере, затем обновите страницу.');
-      return;
-    }
-    if (state.pushNotificationsReady) {
-      try {
-        await showNotificationTest();
-      } catch (err) {
-        updateNotificationButton({ error: true });
-        console.error('Notification test error:', err);
-      }
       return;
     }
     await subscribeToPush(socket, true);
@@ -137,14 +114,9 @@ export function initSocket() {
       });
       const subscribeResp = await fetch('/api/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: state.currentUser.id, subscription }) });
       if (!subscribeResp.ok) throw new Error('Failed to save push subscription');
-      state.pushNotificationsReady = true;
       updateNotificationButton({ subscribed: true });
-      if (requestPermission) {
-        await showNotificationTest();
-      }
     } catch (err) {
       state.pushSubscriptionAttempted = false;
-      state.pushNotificationsReady = false;
       updateNotificationButton({ error: true });
       console.error('Push subscription error:', err);
     }
