@@ -354,6 +354,7 @@ export function displayMessage(msg, isGroup) {
       video.addEventListener('click', (e) => { e.stopPropagation(); window.open(msg.fileInfo.url); });
       messageDiv.appendChild(video);
     } else if (mime.startsWith('audio/') || /\.mp3$/i.test(msg.fileInfo.originalname || '')) {
+      messageDiv.classList.add('audio-message');
       const audio = document.createElement('audio');
       audio.src = msg.fileInfo.url; audio.controls = true;
       audio.preload = 'metadata';
