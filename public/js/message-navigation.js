@@ -2,6 +2,23 @@
 import { state } from './state.js';
 import { dom } from './dom.js';
 
+function highlightAndCenterMessage(message) {
+  const containerRect = dom.messagesDiv.getBoundingClientRect();
+  const messageRect = message.getBoundingClientRect();
+  const messageCenter = dom.messagesDiv.scrollTop
+    + (messageRect.top - containerRect.top)
+    + (messageRect.height / 2);
+
+  // Keep the referenced message a little above the visual center of the chat.
+  const targetScrollTop = messageCenter - (dom.messagesDiv.clientHeight * 0.42);
+  dom.messagesDiv.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+
+  message.style.outline = '2px solid #ff8c00';
+  message.style.backgroundColor = 'rgba(255, 140, 0, 0.2)';
+  setTimeout(() => { message.style.outline = ''; }, 500);
+  setTimeout(() => { message.style.backgroundColor = ''; }, 1500);
+}
+
 export function initMessageNavigation() {
   if (dom.messagesDiv) {
     dom.messagesDiv.addEventListener('click', (e) => {
@@ -10,23 +27,13 @@ export function initMessageNavigation() {
         e.stopPropagation();
         const original = dom.messagesDiv.querySelector(`[data-message-id="${replyContext.dataset.replyToId}"]`);
         if (original) {
-          original.style.outline = '2px solid #ff8c00';
-          setTimeout(() => original.style.outline = '', 500);
-          const msgTop = original.offsetTop - 20;
-          dom.messagesDiv.scrollTop = msgTop;
-          original.style.backgroundColor = 'rgba(255, 140, 0, 0.2)';
-          setTimeout(() => original.style.backgroundColor = '', 1500);
+          highlightAndCenterMessage(original);
         }
         return;
       }
       const target = e.target.closest('.message');
       if (target && target.dataset.messageId) {
-        target.style.outline = '2px solid #ff8c00';
-        setTimeout(() => target.style.outline = '', 500);
-        const msgTop = target.offsetTop - 20;
-        dom.messagesDiv.scrollTop = msgTop;
-        target.style.backgroundColor = 'rgba(255, 140, 0, 0.2)';
-        setTimeout(() => target.style.backgroundColor = '', 1500);
+        highlightAndCenterMessage(target);
       }
     });
   }

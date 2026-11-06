@@ -10,6 +10,11 @@ export function initSocket() {
   window._socket = socket;
 
 
+  const reportPageVisibility = () => {
+    socket.emit('page visibility', { visible: document.visibilityState === 'visible' });
+  };
+  document.addEventListener('visibilitychange', reportPageVisibility);
+  socket.on('connect', reportPageVisibility);
 
   dom.joinBtn.addEventListener('click', () => {
     const name = dom.nameInput.value.trim();
@@ -39,6 +44,7 @@ export function initSocket() {
     if (!state.audioContext) state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
     dom.loginDiv.style.display = 'none';
     dom.chatDiv.style.display = 'flex';
+    reportPageVisibility();
     subscribeToPush(socket);
     history.replaceState({ screen: 'chatlist' }, '');
     startLastSeenTimer();

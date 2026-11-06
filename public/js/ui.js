@@ -353,6 +353,12 @@ export function displayMessage(msg, isGroup) {
       video.style.maxWidth = '100%'; video.style.maxHeight = '180px';
       video.addEventListener('click', (e) => { e.stopPropagation(); window.open(msg.fileInfo.url); });
       messageDiv.appendChild(video);
+    } else if (mime.startsWith('audio/') || /\.mp3$/i.test(msg.fileInfo.originalname || '')) {
+      const audio = document.createElement('audio');
+      audio.src = msg.fileInfo.url; audio.controls = true;
+      audio.preload = 'metadata';
+      audio.addEventListener('click', (e) => { e.stopPropagation(); });
+      messageDiv.appendChild(audio);
     } else {
       const a = document.createElement('a');
       a.href = msg.fileInfo.url; a.download = msg.fileInfo.originalname;

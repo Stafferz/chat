@@ -19,6 +19,7 @@ export function initUpload(socket) {
           img.style.maxWidth = '30px'; img.style.maxHeight = '30px'; img.style.borderRadius = '4px';
           dom.fileThumb.appendChild(img);
         } else if (state.selectedFile.type.startsWith('video/')) dom.fileThumb.textContent = '🎥';
+        else if (state.selectedFile.type.startsWith('audio/') || /\.mp3$/i.test(state.selectedFile.name)) dom.fileThumb.textContent = '🎵';
         else dom.fileThumb.textContent = '📎';
       };
       reader.readAsDataURL(state.selectedFile);

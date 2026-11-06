@@ -2,6 +2,11 @@ const store = require('../store');
 const { generateId } = require('../utils/id');
 
 function registerPresence(io, socket) {
+  // A background tab remains connected, so track visibility separately.
+  socket.on('page visibility', ({ visible } = {}) => {
+    socket.data.pageVisible = visible === true;
+  });
+
   socket.on('join', ({ name, userId }) => {
     if (!userId) userId = generateId();
     if (name && name.length > 15) { socket.emit('joinError', 'Имя слишком длинное (макс. 15 символов)'); return; }

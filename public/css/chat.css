@@ -160,6 +160,12 @@
   margin-top: 4px;
 }
 
+.message audio {
+  display: block;
+  width: min(280px, 100%);
+  margin-top: 4px;
+}
+
 .file-attachment {
   display: flex;
   align-items: center;
