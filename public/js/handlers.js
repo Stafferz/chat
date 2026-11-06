@@ -13,6 +13,35 @@ function scrollToBottomAfterLayout() {
   setTimeout(scroll, 180);
 }
 
+function showDesktopFallbackNotification(title, body, messageId) {
+  if (document.visibilityState === 'visible' || state.pushNotificationsReady) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const options = {
+    body: body || 'Новое сообщение',
+    icon: '/icon.png',
+    badge: '/icon.png',
+    tag: `chat-message-${messageId}`,
+    data: { url: '/' }
+  };
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration().then((registration) => {
+      if (registration) return registration.showNotification(title, options);
+      const notification = new Notification(title, options);
+      notification.onclick = () => { window.focus(); notification.close(); };
+    }).catch((err) => console.error('Desktop notification error:', err));
+    return;
+  }
+
+  try {
+    const notification = new Notification(title, options);
+    notification.onclick = () => { window.focus(); notification.close(); };
+  } catch (err) {
+    console.error('Desktop notification error:', err);
+  }
+}
+
 export function initHandlers(socket) {
   socket.on('private message', (msg) => {
     const isOwn = msg.from === state.currentUser.id;
@@ -27,6 +56,7 @@ export function initHandlers(socket) {
     const isActiveChat = state.selectedChat && !state.selectedChat.isGroup && state.selectedChat.id === peerId;
     if (!isOwn) {
       if (isActiveChat) playActiveChatSound(); else playNotificationSound();
+      showDesktopFallbackNotification(msg.fromName, msg.text || 'Новое вложение', msg.id);
     }
     if (isActiveChat) {
       const wasAtBottom = dom.messagesDiv.scrollHeight - dom.messagesDiv.scrollTop - dom.messagesDiv.clientHeight < 80;
@@ -48,6 +78,8 @@ export function initHandlers(socket) {
     const isActiveChat = state.selectedChat && state.selectedChat.isGroup && state.selectedChat.id === groupId;
     if (!isOwn) {
       if (isActiveChat) playActiveChatSound(); else playNotificationSound();
+      const groupName = state.groups[groupId]?.name || 'Группа';
+      showDesktopFallbackNotification(`${groupName}: ${msg.fromName}`, msg.text || 'Новое вложение', msg.id);
     }
     if (isActiveChat) {
       const wasAtBottom = dom.messagesDiv.scrollHeight - dom.messagesDiv.scrollTop - dom.messagesDiv.clientHeight < 80;
