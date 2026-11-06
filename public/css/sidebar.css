@@ -31,7 +31,8 @@
   border-radius: 20px;
 }
 
-#create-group-btn {
+#create-group-btn,
+#notification-btn {
   background: transparent;
   border: 1px solid #121212;
   color: #121212;
@@ -42,8 +43,14 @@
   font-size: 0.9rem;
 }
 
-#create-group-btn:active {
+#create-group-btn:active,
+#notification-btn:active {
   background: rgba(0,0,0,0.1);
+}
+
+#notification-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
 }
 
 #change-nick-btn {

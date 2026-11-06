@@ -16,6 +16,38 @@ export function initSocket() {
   document.addEventListener('visibilitychange', reportPageVisibility);
   socket.on('connect', reportPageVisibility);
 
+  function updateNotificationButton({ subscribed = false, error = false } = {}) {
+    if (!dom.notificationBtn) return;
+    const supported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+    if (!supported || subscribed) {
+      dom.notificationBtn.style.display = 'none';
+      return;
+    }
+
+    dom.notificationBtn.style.display = 'inline-block';
+    dom.notificationBtn.disabled = false;
+    if (Notification.permission === 'denied') {
+      dom.notificationBtn.textContent = '🔕';
+      dom.notificationBtn.title = 'Уведомления заблокированы в настройках браузера';
+    } else if (error) {
+      dom.notificationBtn.textContent = '⚠️';
+      dom.notificationBtn.title = 'Не удалось подключить уведомления — нажмите, чтобы повторить';
+    } else {
+      dom.notificationBtn.textContent = '🔔';
+      dom.notificationBtn.title = 'Включить уведомления';
+    }
+  }
+
+  updateNotificationButton();
+
+  dom.notificationBtn?.addEventListener('click', async () => {
+    if (Notification.permission === 'denied') {
+      alert('Уведомления заблокированы. Разрешите их в настройках сайта в браузере, затем обновите страницу.');
+      return;
+    }
+    await subscribeToPush(socket, true);
+  });
+
   dom.joinBtn.addEventListener('click', () => {
     const name = dom.nameInput.value.trim();
     if (!name) return;
@@ -24,10 +56,11 @@ export function initSocket() {
     if (!userId) { userId = generateClientId(); localStorage.setItem('userId', userId); }
     socket.emit('join', { name, userId });
     if (!state.audioContext) state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    // Request browser notification permission explicitly
+    // A fresh login is a user gesture, so browsers allow the permission prompt here.
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission().then(p => {
-        if (p === 'granted') subscribeToPush(socket);
+        updateNotificationButton();
+        if (p === 'granted' && state.currentUser) subscribeToPush(socket);
       });
     }
   });
@@ -51,17 +84,25 @@ export function initSocket() {
     socket.emit('get users');
   });
 
-  async function subscribeToPush(s) {
-    if (state.pushSubscriptionAttempted) return;
-    state.pushSubscriptionAttempted = true;
-    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  async function subscribeToPush(s, requestPermission = false) {
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      updateNotificationButton();
+      return;
+    }
     try {
       let perm = Notification.permission;
-      if (perm === 'default') {
+      if (perm === 'default' && requestPermission) {
         perm = await Notification.requestPermission();
       }
-      if (perm === 'denied') return;
+      if (perm !== 'granted') {
+        updateNotificationButton();
+        return;
+      }
+      if (!state.currentUser || state.pushSubscriptionAttempted) return;
+      state.pushSubscriptionAttempted = true;
+      dom.notificationBtn.disabled = true;
       const publicKeyResp = await fetch('/api/vapid-public-key');
+      if (!publicKeyResp.ok) throw new Error('Failed to get VAPID public key');
       const { publicKey } = await publicKeyResp.json();
       const registration = await navigator.serviceWorker.register('/service-worker.js');
       await registration.ready;
@@ -71,8 +112,14 @@ export function initSocket() {
         userVisibleOnly: true,
         applicationServerKey: urlB64ToUint8Array(publicKey)
       });
-      await fetch('/api/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: state.currentUser.id, subscription }) });
-    } catch (err) { console.error(err); }
+      const subscribeResp = await fetch('/api/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: state.currentUser.id, subscription }) });
+      if (!subscribeResp.ok) throw new Error('Failed to save push subscription');
+      updateNotificationButton({ subscribed: true });
+    } catch (err) {
+      state.pushSubscriptionAttempted = false;
+      updateNotificationButton({ error: true });
+      console.error('Push subscription error:', err);
+    }
   }
 
   function startLastSeenTimer() {

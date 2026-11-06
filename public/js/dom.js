@@ -14,6 +14,7 @@ export const dom = {
   messageInput: document.getElementById('message-input'),
   sendBtn: document.getElementById('send-btn'),
   backBtn: document.getElementById('back-btn'),
+  notificationBtn: document.getElementById('notification-btn'),
   changeNickBtn: document.getElementById('change-nick-btn'),
   clearChatBtn: document.getElementById('clear-chat-btn'),
   fileUpload: document.getElementById('file-upload'),
